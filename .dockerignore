@@ -1,0 +1,24 @@
+# Secretos y datos de runtime — NO incluir en la imagen
+.env
+data/
+logs/
+uploads/
+
+# Git
+.git/
+.gitignore
+.dockerignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Pruebas / temporales
+Dockerfile.test
+_*.py
+
+# OS
+.DS_Store
+Thumbs.db

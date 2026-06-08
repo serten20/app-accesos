@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Configuración General{% endblock %}
+{% block page_title %}Configuración General{% endblock %}
+
+{% block content %}
+<div class="max-w-xl">
+
+  {% if request.query_params.get('success') %}
+  <div class="alert alert-success mb-5 text-sm">✓ Configuración guardada correctamente.</div>
+  {% endif %}
+
+  <form method="post" action="/admin/settings/general">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+
+    <!-- ── Zona Horaria ── -->
+    <div class="card bg-base-100 border border-base-200">
+      <div class="card-body p-5 gap-4">
+
+        <div class="flex items-center gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/>
+          </svg>
+          <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Zona Horaria</h2>
+        </div>
+
+        <p class="text-xs text-base-content/40">
+          Controla cómo se muestran las fechas y horas en los logs de auditoría, notificaciones y toda la interfaz.
+          Los datos se almacenan en UTC y se convierten al mostrarse.
+        </p>
+
+        <div class="form-control">
+          <label class="label py-1">
+            <span class="label-text text-xs">Zona horaria del sistema</span>
+            <span class="label-text-alt text-xs text-base-content/30">Actualmente: <b>{{ cfg.timezone }}</b></span>
+          </label>
+          <select name="timezone" class="select select-bordered bg-base-200">
+            {% set tz = cfg.timezone or 'Europe/Madrid' %}
+            <optgroup label="🇪🇺 Europa">
+              <option value="Europe/Madrid"    {% if tz == 'Europe/Madrid'    %}selected{% endif %}>España — Europe/Madrid (UTC+1/+2)</option>
+              <option value="Europe/Lisbon"    {% if tz == 'Europe/Lisbon'    %}selected{% endif %}>Portugal — Europe/Lisbon (UTC+0/+1)</option>
+              <option value="Europe/London"    {% if tz == 'Europe/London'    %}selected{% endif %}>Reino Unido — Europe/London (UTC+0/+1)</option>
+              <option value="Europe/Paris"     {% if tz == 'Europe/Paris'     %}selected{% endif %}>Francia — Europe/Paris (UTC+1/+2)</option>
+              <option value="Europe/Berlin"    {% if tz == 'Europe/Berlin'    %}selected{% endif %}>Alemania — Europe/Berlin (UTC+1/+2)</option>
+              <option value="Europe/Rome"      {% if tz == 'Europe/Rome'      %}selected{% endif %}>Italia — Europe/Rome (UTC+1/+2)</option>
+              <option value="Europe/Amsterdam" {% if tz == 'Europe/Amsterdam' %}selected{% endif %}>Países Bajos — Europe/Amsterdam (UTC+1/+2)</option>
+            </optgroup>
+            <optgroup label="🌎 América">
+              <option value="America/New_York"    {% if tz == 'America/New_York'    %}selected{% endif %}>Nueva York — America/New_York (UTC-5/-4)</option>
+              <option value="America/Chicago"     {% if tz == 'America/Chicago'     %}selected{% endif %}>Chicago — America/Chicago (UTC-6/-5)</option>
+              <option value="America/Denver"      {% if tz == 'America/Denver'      %}selected{% endif %}>Denver — America/Denver (UTC-7/-6)</option>
+              <option value="America/Los_Angeles" {% if tz == 'America/Los_Angeles' %}selected{% endif %}>Los Ángeles — America/Los_Angeles (UTC-8/-7)</option>
+              <option value="America/Bogota"      {% if tz == 'America/Bogota'      %}selected{% endif %}>Colombia — America/Bogota (UTC-5)</option>
+              <option value="America/Mexico_City" {% if tz == 'America/Mexico_City' %}selected{% endif %}>México — America/Mexico_City (UTC-6/-5)</option>
+              <option value="America/Argentina/Buenos_Aires" {% if tz == 'America/Argentina/Buenos_Aires' %}selected{% endif %}>Argentina — Buenos Aires (UTC-3)</option>
+            </optgroup>
+            <optgroup label="🌍 Referencia">
+              <option value="UTC" {% if tz == 'UTC' %}selected{% endif %}>UTC (sin conversión)</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <!-- Hora actual en la zona seleccionada (JS) -->
+        <div class="bg-base-200 rounded-lg px-4 py-3 flex items-center gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content/40 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <div>
+            <p class="text-xs text-base-content/40">Tu hora local ahora mismo</p>
+            <p class="text-sm font-mono font-bold" id="local-clock">—</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── Acceso desde emails ── -->
+    <div class="card bg-base-100 border border-base-200 mt-5">
+      <div class="card-body p-5 gap-4">
+        <div class="flex items-center gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 015.656 5.656l-1.5 1.5"/>
+          </svg>
+          <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Enlaces en emails</h2>
+        </div>
+        <p class="text-xs text-base-content/40">
+          Dirección pública de la consola para construir los enlaces de los correos (botón de confirmación rápida y acceso a la consola).
+          Sin esto, los enlaces de los emails no funcionarán.
+        </p>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">URL pública de la aplicación</span></label>
+          <input type="url" name="app_base_url" value="{{ cfg.app_base_url or '' }}"
+                 class="input input-bordered input-sm bg-base-200" placeholder="https://accesos.tuempresa.com" />
+          <span class="label-text-alt text-xs text-base-content/30 mt-1">Sin barra final. Ej.: https://accesos.tuempresa.com</span>
+        </div>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Caducidad del enlace de confirmación rápida (horas)</span></label>
+          <input type="number" name="confirm_token_hours" value="{{ cfg.confirm_token_hours or '3' }}" min="1" max="720"
+                 class="input input-bordered input-sm bg-base-200 w-32" />
+          <span class="label-text-alt text-xs text-base-content/30 mt-1">Pasado ese tiempo, el botón rápido caduca; el enlace a la consola (login) sigue funcionando.</span>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm w-fit">💾 Guardar</button>
+      </div>
+    </div>
+
+  </form>
+
+  <!-- Navegación rápida -->
+  <div class="flex gap-3 mt-5 flex-wrap">
+    <a href="/admin/settings/smtp" class="btn btn-sm btn-outline btn-ghost gap-1 text-xs">📧 SMTP</a>
+    <a href="/admin/settings/alerts" class="btn btn-sm btn-outline btn-ghost gap-1 text-xs">🔔 Alertas</a>
+    <a href="/admin/settings/reports-config" class="btn btn-sm btn-outline btn-ghost gap-1 text-xs">📊 Reportes</a>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('local-clock').textContent = now.toLocaleString('es-ES', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+</script>
+{% endblock %}

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Técnicos{% endblock %}
+{% block page_title %}Gestión de Técnicos{% endblock %}
+
+{% block content %}
+
+{% if request.query_params.get('error') == 'duplicate' %}
+<div class="alert alert-error mb-4 text-sm">El nombre de usuario ya existe.</div>
+{% endif %}
+{% if request.query_params.get('success') == 'created' %}
+<div class="alert alert-success mb-4 text-sm">✓ Técnico creado correctamente.</div>
+{% endif %}
+{% if request.query_params.get('imported') %}
+<div class="alert alert-success mb-4 text-sm">✓ Se importaron {{ request.query_params.get('imported') }} usuario(s) correctamente.</div>
+{% endif %}
+{% if request.query_params.get('success') == 'archived' %}
+<div class="alert alert-warning mb-4 text-sm">📦 Técnico archivado. Puedes restaurarlo desde la <a href="/admin/trash" class="underline">Papelera</a>.</div>
+{% endif %}
+{% if request.query_params.get('success') == 'demoted' %}
+<div class="alert alert-info mb-4 text-sm">↓ Administrador degradado a técnico. Ahora aparece en esta lista.</div>
+{% endif %}
+
+<div class="flex justify-end mb-3">
+  <a href="/admin/export/technicians.csv" class="btn btn-sm btn-outline gap-1.5"
+     style="border-color:rgba(34,197,94,0.3);color:#4ade80">
+    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+    Exportar CSV
+  </a>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+  <!-- Create Form -->
+  <div class="card bg-base-100 border border-base-200 h-fit">
+    <div class="card-body p-5 gap-4">
+      <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Nuevo Técnico</h2>
+      <form method="post" action="/admin/users/create" class="flex flex-col gap-3">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Username *</span></label>
+          <input type="text" name="username" required class="input input-bordered input-sm bg-base-200" />
+        </div>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Email *</span></label>
+          <input type="email" name="email" required class="input input-bordered input-sm bg-base-200" />
+        </div>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Contraseña inicial *</span></label>
+          <input type="password" name="password" required class="input input-bordered input-sm bg-base-200" />
+        </div>
+        <div class="form-control">
+          <label class="label cursor-pointer justify-start gap-3 py-2">
+            <input type="checkbox" name="must_change_password" class="checkbox checkbox-warning checkbox-sm" checked />
+            <span class="label-text text-xs">Forzar cambio en próximo login</span>
+          </label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm mt-1">+ Crear Técnico</button>
+      </form>
+
+      <div class="divider my-1 text-xs text-base-content/30">o</div>
+      <a href="/admin/bulk-import?mode=users" class="btn btn-sm btn-outline btn-primary w-full gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        Importar CSV/TXT
+      </a>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="xl:col-span-2 card bg-base-100 border border-base-200">
+    <div class="card-body p-0">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-base-200 flex-wrap gap-2">
+        <span class="font-semibold text-sm uppercase tracking-wider text-base-content/60">
+          {{ technicians|length }} técnico(s)
+        </span>
+        <input type="text" placeholder="Buscar técnico..."
+               oninput="filterTable(this.value,'tech-tbody','tech-row')"
+               class="input input-bordered input-xs bg-base-200 w-44"/>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr class="text-xs uppercase tracking-wider text-base-content/40">
+              <th>Usuario</th>
+              <th>Email</th>
+              <th>Empresas</th>
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tech-tbody">
+            {% for t in technicians %}
+            <tr class="hover:bg-base-200/40 tech-row" data-name="{{ t.username|lower }} {{ t.email|lower }}">
+              <td>
+                <div>
+                  <a href="/admin/technician/{{ t.id }}" class="font-medium hover:text-primary">{{ t.username }}</a>
+                  {% if t.must_change_password %}
+                  <span class="badge badge-warning badge-xs ml-1">cambio pendiente</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td class="text-xs text-base-content/50">{{ t.email }}</td>
+              <td>
+                <span class="badge badge-ghost badge-sm">{{ t.companies|length }}</span>
+              </td>
+              <td>
+                {% if t.is_active %}
+                  <span class="badge badge-success badge-xs">Activo</span>
+                {% else %}
+                  <span class="badge badge-error badge-xs">Inactivo</span>
+                {% endif %}
+              </td>
+              <td class="text-right">
+                <div class="flex gap-1 justify-end">
+                  <a href="/admin/technician/{{ t.id }}" class="btn btn-xs btn-ghost text-primary">Ver</a>
+                  <form method="post" action="/admin/users/{{ t.id }}/promote"
+                        onsubmit="return confirm('¿Promover a {{ t.username }} a ADMINISTRADOR? Tendrá acceso total al sistema (seguirá siendo técnico).')">
+                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+                    <button class="btn btn-xs btn-ghost text-info" title="Convertir en administrador (mantiene rol de técnico)">↑ Hacer admin</button>
+                  </form>
+                  <form method="post" action="/admin/users/{{ t.id }}/toggle">
+                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+                    <button class="btn btn-xs btn-ghost {% if t.is_active %}text-warning{% else %}text-success{% endif %}">
+                      {{ 'Deshabilitar' if t.is_active else 'Habilitar' }}
+                    </button>
+                  </form>
+                  <form method="post" action="/admin/users/{{ t.id }}/delete"
+                        onsubmit="return confirm('¿Archivar técnico {{ t.username }}? Podrás restaurarlo desde la Papelera.')">
+                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+                    <button class="btn btn-xs btn-ghost text-warning" title="Mueve el técnico a la Papelera (recuperable)">Archivar</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center py-8 text-base-content/30 text-sm">No hay técnicos registrados</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterTable(query, tbodyId, rowClass) {
+  const q = query.toLowerCase();
+  document.querySelectorAll('.' + rowClass).forEach(row => {
+    row.style.display = (row.dataset.name || '').includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

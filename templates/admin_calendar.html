@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}Calendario de Vencimientos{% endblock %}
+{% block page_title %}Calendario de Vencimientos y Actividad{% endblock %}
+
+{% block content %}
+<style>
+  .glass-panel { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:0.875rem; overflow:hidden; }
+  .kpi { background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.06); border-radius:0.75rem; padding:0.9rem 1.1rem; }
+  .kpi-label { font-size:0.58rem; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:rgba(166,173,187,0.4); }
+  .kpi-value { font-size:1.5rem; font-weight:800; margin-top:0.2rem; }
+  .panel-title { font-size:0.65rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:rgba(166,173,187,0.4); }
+  .cal-nav-btn { width:30px; height:30px; border-radius:0.5rem; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.03); color:rgba(166,173,187,0.7); cursor:pointer; font-size:0.9rem; transition:all 0.15s; }
+  .cal-nav-btn:hover { background:rgba(255,255,255,0.07); }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+  .cal-dow { text-align:center; font-size:0.6rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:rgba(166,173,187,0.3); padding:0.3rem 0; }
+  .cal-cell { min-height:64px; border-radius:0.5rem; border:1px solid rgba(255,255,255,0.05); background:rgba(255,255,255,0.015); padding:0.35rem; position:relative; transition:all 0.12s; }
+  .cal-cell.other { opacity:0.3; }
+  .cal-cell.today { border-color:rgba(59,130,246,0.5); box-shadow:0 0 0 1px rgba(59,130,246,0.3) inset; }
+  .cal-cell.has:hover { background:rgba(255,255,255,0.05); cursor:pointer; }
+  .cal-daynum { font-size:0.7rem; color:rgba(166,173,187,0.6); font-family:monospace; }
+  .cal-badge { position:absolute; bottom:0.35rem; left:0.35rem; right:0.35rem; display:flex; gap:3px; align-items:center; }
+  .cal-dot { width:7px; height:7px; border-radius:9999px; }
+  .cal-count { font-size:0.62rem; font-weight:700; margin-left:auto; }
+  .legend-dot { width:9px; height:9px; border-radius:9999px; display:inline-block; }
+
+  /* Heatmap */
+  .hm-wrap { overflow-x:auto; padding-bottom:0.5rem; }
+  .hm-grid { display:grid; grid-template-rows:repeat(7,12px); grid-auto-flow:column; grid-auto-columns:12px; gap:3px; }
+  .hm-cell { width:12px; height:12px; border-radius:2px; background:rgba(255,255,255,0.04); }
+  .hm-months { display:flex; gap:3px; font-size:0.58rem; color:rgba(166,173,187,0.35); margin-bottom:4px; padding-left:20px; }
+  .hm-dows { display:grid; grid-template-rows:repeat(7,12px); gap:3px; font-size:0.55rem; color:rgba(166,173,187,0.3); margin-right:4px; }
+</style>
+
+<!-- KPIs -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+  <div class="kpi"><div class="kpi-label">Vencidos</div><div class="kpi-value" style="color:#f87171">{{ overdue }}</div></div>
+  <div class="kpi"><div class="kpi-label">Vencen en 7 días</div><div class="kpi-value" style="color:#facc15">{{ next_7 }}</div></div>
+  <div class="kpi"><div class="kpi-label">Vencen en 30 días</div><div class="kpi-value text-base-content/80">{{ next_30 }}</div></div>
+  <div class="kpi"><div class="kpi-label">Rotaciones (12 meses)</div><div class="kpi-value" style="color:#4ade80">{{ rotations_year }}</div></div>
+</div>
+
+<div class="flex items-center justify-end mb-3">
+  <a href="/admin/reports" class="text-xs text-base-content/40 hover:text-base-content/70">← Volver a Reportes</a>
+</div>
+
+<!-- Calendario -->
+<div class="glass-panel mb-5">
+  <div class="flex items-center justify-between px-5 py-3" style="border-bottom:1px solid rgba(255,255,255,0.05)">
+    <span class="panel-title">Calendario de vencimientos</span>
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 text-xs text-base-content/45">
+        <span class="flex items-center gap-1"><span class="legend-dot" style="background:#f87171"></span>Crítico</span>
+        <span class="flex items-center gap-1"><span class="legend-dot" style="background:#facc15"></span>Aviso</span>
+        <span class="flex items-center gap-1"><span class="legend-dot" style="background:#4ade80"></span>OK</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="cal-nav-btn" id="cal-prev">‹</button>
+        <span id="cal-label" class="text-sm font-semibold text-base-content/70" style="min-width:140px;text-align:center"></span>
+        <button class="cal-nav-btn" id="cal-next">›</button>
+      </div>
+    </div>
+  </div>
+  <div class="p-5">
+    <div class="cal-grid mb-1">
+      <div class="cal-dow">Lun</div><div class="cal-dow">Mar</div><div class="cal-dow">Mié</div>
+      <div class="cal-dow">Jue</div><div class="cal-dow">Vie</div><div class="cal-dow">Sáb</div><div class="cal-dow">Dom</div>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <!-- Detalle del día seleccionado -->
+    <div id="cal-detail" class="mt-4 hidden">
+      <p class="text-xs font-bold uppercase tracking-wider text-base-content/40 mb-2" id="cal-detail-title"></p>
+      <div id="cal-detail-list" class="flex flex-col gap-1.5"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Heatmap -->
+<div class="glass-panel">
+  <div class="flex items-center justify-between px-5 py-3" style="border-bottom:1px solid rgba(255,255,255,0.05)">
+    <span class="panel-title">Actividad de rotaciones · últimos 12 meses</span>
+    <div class="flex items-center gap-1.5 text-xs text-base-content/40">
+      <span>menos</span>
+      <span class="hm-cell" style="background:rgba(255,255,255,0.04)"></span>
+      <span class="hm-cell" style="background:rgba(74,222,128,0.3)"></span>
+      <span class="hm-cell" style="background:rgba(74,222,128,0.55)"></span>
+      <span class="hm-cell" style="background:rgba(74,222,128,0.8)"></span>
+      <span class="hm-cell" style="background:#22c55e"></span>
+      <span>más</span>
+    </div>
+  </div>
+  <div class="p-5">
+    <div class="hm-months" id="hm-months"></div>
+    <div class="flex">
+      <div class="hm-dows"><span></span><span>L</span><span></span><span>X</span><span></span><span>V</span><span></span></div>
+      <div class="hm-wrap"><div class="hm-grid" id="hm-grid"></div></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const EXP = {{ expiries | tojson }};
+const HEAT = {{ heat | tojson }};
+const TODAY = "{{ today }}";
+
+const STATUS_COLOR = { critical:'#f87171', warning:'#facc15', ok:'#4ade80' };
+const STATUS_RANK  = { critical:3, warning:2, ok:1 };
+const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+// ── Agrupar vencimientos por fecha ──
+const byDate = {};
+EXP.forEach(e => { (byDate[e.date] = byDate[e.date] || []).push(e); });
+
+function worstStatus(list) {
+  return list.reduce((w, e) => STATUS_RANK[e.status] > STATUS_RANK[w] ? e.status : w, 'ok');
+}
+
+// ── Calendario ──
+const todayD = new Date(TODAY + 'T00:00:00');
+let viewY = todayD.getFullYear(), viewM = todayD.getMonth();
+
+function pad(n){ return String(n).padStart(2,'0'); }
+function iso(y,m,d){ return `${y}-${pad(m+1)}-${pad(d)}`; }
+
+function renderCalendar() {
+  document.getElementById('cal-label').textContent = MONTHS[viewM] + ' ' + viewY;
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+  const first = new Date(viewY, viewM, 1);
+  let startDow = (first.getDay() + 6) % 7;          // Lunes = 0
+  const daysInMonth = new Date(viewY, viewM + 1, 0).getDate();
+  const prevDays = new Date(viewY, viewM, 0).getDate();
+
+  for (let i = 0; i < 42; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell';
+    let y = viewY, m = viewM, dnum;
+    if (i < startDow) { dnum = prevDays - startDow + 1 + i; m = viewM - 1; if (m < 0){m=11;y--;} cell.classList.add('other'); }
+    else if (i >= startDow + daysInMonth) { dnum = i - startDow - daysInMonth + 1; m = viewM + 1; if (m > 11){m=0;y++;} cell.classList.add('other'); }
+    else { dnum = i - startDow + 1; }
+    const key = iso(y, m, dnum);
+    cell.innerHTML = `<span class="cal-daynum">${dnum}</span>`;
+    if (key === TODAY) cell.classList.add('today');
+    const ev = byDate[key];
+    if (ev && !cell.classList.contains('other')) {
+      cell.classList.add('has');
+      const ws = worstStatus(ev);
+      cell.innerHTML += `<div class="cal-badge"><span class="cal-dot" style="background:${STATUS_COLOR[ws]}"></span><span class="cal-count" style="color:${STATUS_COLOR[ws]}">${ev.length}</span></div>`;
+      cell.onclick = () => showDetail(key, ev);
+    }
+    grid.appendChild(cell);
+  }
+}
+
+function showDetail(key, ev) {
+  const box = document.getElementById('cal-detail');
+  box.classList.remove('hidden');
+  const [y,m,d] = key.split('-');
+  document.getElementById('cal-detail-title').textContent = `${d}/${m}/${y} — ${ev.length} vencimiento(s)`;
+  const list = document.getElementById('cal-detail-list');
+  list.innerHTML = ev.sort((a,b)=>STATUS_RANK[b.status]-STATUS_RANK[a.status]).map(e => `
+    <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg" style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.05)">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="cal-dot" style="background:${STATUS_COLOR[e.status]};flex-shrink:0"></span>
+        <span class="text-sm text-base-content/80 truncate"><b>${escapeHtml(e.company)}</b> · ${escapeHtml(e.tech)}</span>
+      </div>
+      <span class="text-xs font-mono shrink-0" style="color:${STATUS_COLOR[e.status]}">${e.days < 0 ? 'vencido' : e.days + 'd'}</span>
+    </div>`).join('');
+}
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+document.getElementById('cal-prev').onclick = () => { viewM--; if(viewM<0){viewM=11;viewY--;} renderCalendar(); };
+document.getElementById('cal-next').onclick = () => { viewM++; if(viewM>11){viewM=0;viewY++;} renderCalendar(); };
+renderCalendar();
+
+// ── Heatmap ──
+function heatColor(c) {
+  if (!c) return 'rgba(255,255,255,0.04)';
+  if (c <= 2) return 'rgba(74,222,128,0.3)';
+  if (c <= 5) return 'rgba(74,222,128,0.55)';
+  if (c <= 9) return 'rgba(74,222,128,0.8)';
+  return '#22c55e';
+}
+(function renderHeatmap() {
+  const grid = document.getElementById('hm-grid');
+  const monthsRow = document.getElementById('hm-months');
+  const end = new Date(TODAY + 'T00:00:00');
+  const start = new Date(end);
+  start.setDate(start.getDate() - 364);
+  // alinear a lunes
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const monthCols = [];
+  let col = 0, lastMonth = -1, cursor = new Date(start);
+  while (cursor <= end) {
+    const key = iso(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+    const c = HEAT[key] || 0;
+    const cell = document.createElement('div');
+    cell.className = 'hm-cell';
+    cell.style.background = heatColor(c);
+    const [yy,mm,dd] = key.split('-');
+    cell.title = `${c} rotación(es) · ${dd}/${mm}/${yy}`;
+    grid.appendChild(cell);
+    const dow = (cursor.getDay() + 6) % 7;
+    if (dow === 0) { // inicio de columna
+      if (cursor.getMonth() !== lastMonth) { monthCols.push({col, label: MONTHS[cursor.getMonth()].slice(0,3)}); lastMonth = cursor.getMonth(); }
+      col++;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  // etiquetas de mes (aprox, separadas por columnas)
+  monthsRow.innerHTML = '';
+  let prev = 0;
+  monthCols.forEach((m, idx) => {
+    const span = document.createElement('span');
+    const gap = m.col - prev;
+    span.style.minWidth = (gap * 15) + 'px';
+    span.textContent = m.label;
+    monthsRow.appendChild(span);
+    prev = m.col;
+  });
+})();
+</script>
+{% endblock %}

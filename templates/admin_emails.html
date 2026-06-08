@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Registro de Emails{% endblock %}
+{% block page_title %}Registro de Emails{% endblock %}
+
+{% block content %}
+<style>
+  .glass-panel { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:0.875rem; overflow:hidden; }
+  .kpi { background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.06); border-radius:0.75rem; padding:1rem 1.25rem; }
+  .kpi-label { font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:rgba(166,173,187,0.4); }
+  .kpi-value { font-size:1.6rem; font-weight:800; margin-top:0.25rem; }
+  .data-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+  .data-table th { text-align:left; padding:0.6rem 1rem; font-size:0.6rem; letter-spacing:0.08em; text-transform:uppercase; color:rgba(166,173,187,0.35); border-bottom:1px solid rgba(255,255,255,0.06); }
+  .data-table td { padding:0.55rem 1rem; border-bottom:1px solid rgba(255,255,255,0.04); color:rgba(166,173,187,0.75); vertical-align:top; }
+  .data-table tr:last-child td { border-bottom:none; }
+  .data-table tr:hover td { background:rgba(255,255,255,0.02); }
+  .pill { display:inline-flex; padding:0.1rem 0.55rem; border-radius:9999px; font-size:0.6rem; font-weight:700; letter-spacing:0.05em; }
+  .pill-sent   { background:rgba(34,197,94,0.12); color:#4ade80; border:1px solid rgba(34,197,94,0.2); }
+  .pill-failed { background:rgba(239,68,68,0.1); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
+  .pill-pending{ background:rgba(234,179,8,0.12); color:#facc15; border:1px solid rgba(234,179,8,0.2); }
+  .pill-kind   { background:rgba(99,102,241,0.1); color:#a5b4fc; border:1px solid rgba(99,102,241,0.2); }
+  .mono { font-family:monospace; }
+  .field-select { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:0.5rem; padding:0.35rem 0.7rem; font-size:0.78rem; color:rgba(166,173,187,0.85); outline:none; cursor:pointer; }
+  .field-select option { background:#1e1f2e; color:#d1d5db; }
+  .btn-retry { display:inline-flex; align-items:center; gap:0.35rem; padding:0.3rem 0.7rem; border-radius:0.45rem; font-size:0.68rem; font-weight:600; cursor:pointer; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.25); color:#f87171; transition:all 0.15s; }
+  .btn-retry:hover { background:rgba(239,68,68,0.18); }
+  .btn-retry-all { display:inline-flex; align-items:center; gap:0.4rem; padding:0.45rem 1rem; border-radius:0.5rem; font-size:0.75rem; font-weight:600; cursor:pointer; background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.25); color:#a5b4fc; transition:all 0.15s; }
+  .btn-retry-all:hover { background:rgba(99,102,241,0.18); }
+  .err-text { color:rgba(248,113,113,0.65); font-size:0.68rem; margin-top:0.2rem; max-width:320px; }
+</style>
+
+{% if success == 'retry' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+  ✓ Email reenviado correctamente.
+</div>
+{% elif success == 'retry_all' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);color:#a5b4fc">
+  ✓ Reintento de todos los fallidos ejecutado. Revisa los estados actualizados abajo.
+</div>
+{% elif error == 'retry_failed' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171">
+  ✗ No se pudo reenviar (revisa la configuración SMTP). El motivo aparece en la fila.
+</div>
+{% endif %}
+
+<!-- KPIs -->
+<div class="grid grid-cols-3 gap-4 mb-5">
+  <div class="kpi"><div class="kpi-label">Enviados hoy</div><div class="kpi-value" style="color:#4ade80">{{ sent_today }}</div></div>
+  <div class="kpi"><div class="kpi-label">Fallidos (pendientes de reintento)</div><div class="kpi-value" style="color:#f87171">{{ failed_total }}</div></div>
+  <div class="kpi"><div class="kpi-label">Total registrados</div><div class="kpi-value text-base-content/80">{{ total }}</div></div>
+</div>
+
+<!-- Filtros + acción -->
+<div class="glass-panel mb-4">
+  <div class="flex items-center justify-between gap-4 flex-wrap p-3 px-5">
+    <form method="get" action="/admin/emails" class="flex items-center gap-2 flex-wrap">
+      <select name="status" class="field-select" onchange="this.form.submit()">
+        <option value="">Todos los estados</option>
+        <option value="sent"    {% if f_status=='sent' %}selected{% endif %}>Enviados</option>
+        <option value="failed"  {% if f_status=='failed' %}selected{% endif %}>Fallidos</option>
+        <option value="pending" {% if f_status=='pending' %}selected{% endif %}>Pendientes</option>
+      </select>
+      <select name="kind" class="field-select" onchange="this.form.submit()">
+        <option value="">Todos los tipos</option>
+        {% for k, label in kind_labels.items() %}
+        <option value="{{ k }}" {% if f_kind==k %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      {% if f_status or f_kind %}<a href="/admin/emails" class="text-xs text-base-content/40 hover:text-base-content/70 ml-1">limpiar</a>{% endif %}
+    </form>
+
+    {% if failed_total > 0 %}
+    <form method="post" action="/admin/emails/retry-failed">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+      <button type="submit" class="btn-retry-all">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Reintentar todos los fallidos ({{ failed_total }})
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Tabla -->
+<div class="glass-panel">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Tipo</th>
+        <th>Destinatario</th>
+        <th>Asunto</th>
+        <th style="text-align:center">Intentos</th>
+        <th>Estado</th>
+        <th style="text-align:right">Acción</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="mono text-base-content/55 whitespace-nowrap">{{ r.created_at.strftime('%d/%m/%Y %H:%M') if r.created_at else '—' }}</td>
+        <td><span class="pill pill-kind">{{ kind_labels.get(r.kind, r.kind) }}</span></td>
+        <td class="text-base-content/80">{{ r.to_address }}</td>
+        <td>
+          {{ r.subject or '—' }}
+          {% if r.status == 'failed' and r.error %}<div class="err-text">⚠ {{ r.error }}</div>{% endif %}
+        </td>
+        <td style="text-align:center" class="mono">
+          {{ r.attempts }}{% if r.status == 'failed' %}<span class="text-base-content/25">/{{ max_attempts }}</span>{% endif %}
+        </td>
+        <td>
+          {% if r.status == 'sent' %}<span class="pill pill-sent">ENVIADO</span>
+          {% elif r.status == 'failed' %}<span class="pill pill-failed">FALLIDO</span>
+          {% else %}<span class="pill pill-pending">PENDIENTE</span>{% endif %}
+        </td>
+        <td style="text-align:right">
+          {% if r.status == 'failed' %}
+          <form method="post" action="/admin/emails/{{ r.id }}/retry" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+            <button type="submit" class="btn-retry" title="Reintentar este envío ahora">
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              Reintentar
+            </button>
+          </form>
+          {% else %}
+          <span class="text-base-content/15">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center text-base-content/25 py-10">Aún no se ha registrado ningún email. Aparecerán aquí en cuanto el sistema envíe alertas, reportes o pruebas.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="text-xs text-base-content/25 mt-3">Se muestran los 300 envíos más recientes. Los fallidos se reintentan automáticamente cada hora (hasta {{ max_attempts }} intentos); los enviados se purgan a los 30 días.</p>
+{% endblock %}

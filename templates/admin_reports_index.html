@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Reportes{% endblock %}
+{% block page_title %}Centro de Reportes{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+
+  <!-- Snapshot del estado actual -->
+  <div class="card bg-base-100 border border-{{ compliance_color }}/30 mb-8">
+    <div class="card-body p-5">
+      <div class="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <p class="text-xs uppercase tracking-wider text-base-content/40 mb-1">Estado actual del sistema</p>
+          <div class="flex items-baseline gap-3">
+            <span class="text-4xl font-bold text-{{ compliance_color }}">{{ compliance_pct }}%</span>
+            <span class="text-base text-{{ compliance_color }}/70 font-semibold">{{ compliance_label }}</span>
+          </div>
+          <p class="text-xs text-base-content/30 mt-1">{{ generated_at }} · {{ total_companies }} empresas gestionadas</p>
+        </div>
+        <div class="flex gap-3">
+          {% if n_critical > 0 %}
+          <div class="text-center bg-error/10 rounded-xl px-4 py-3 border border-error/20">
+            <p class="text-2xl font-bold text-error">{{ n_critical }}</p>
+            <p class="text-xs text-base-content/40 uppercase tracking-wider mt-0.5">Críticas</p>
+          </div>
+          {% endif %}
+          {% if n_warning > 0 %}
+          <div class="text-center bg-warning/10 rounded-xl px-4 py-3 border border-warning/20">
+            <p class="text-2xl font-bold text-warning">{{ n_warning }}</p>
+            <p class="text-xs text-base-content/40 uppercase tracking-wider mt-0.5">En atención</p>
+          </div>
+          {% endif %}
+          {% if n_critical == 0 and n_warning == 0 %}
+          <div class="text-center bg-success/10 rounded-xl px-6 py-3 border border-success/20">
+            <p class="text-sm font-bold text-success">✓ Sin alertas</p>
+            <p class="text-xs text-base-content/40 mt-0.5">Todo en orden</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Informes disponibles -->
+  <h2 class="text-xs uppercase tracking-wider text-base-content/40 mb-4 pl-1">Informes disponibles</h2>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+    <!-- Informe de Salud Global -->
+    <div class="card bg-base-100 border border-base-200 hover:border-primary/40 transition-colors">
+      <div class="card-body p-6 gap-4">
+        <div class="flex items-start gap-4">
+          <div class="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-bold text-base">Informe de Salud Global</h3>
+            <p class="text-sm text-base-content/50 mt-1 leading-relaxed">
+              Visión completa del cumplimiento: estado de todas las empresas, resumen por técnico y porcentaje global.
+            </p>
+          </div>
+        </div>
+        <div class="pt-1 border-t border-base-200">
+          <a href="/admin/report" class="btn btn-sm btn-primary gap-2 w-full">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+            Ver Informe Global
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cuentas en Riesgo -->
+    <div class="card bg-base-100 border {% if n_critical > 0 %}border-error/30{% elif n_warning > 0 %}border-warning/30{% else %}border-base-200{% endif %} hover:border-error/50 transition-colors">
+      <div class="card-body p-6 gap-4">
+        <div class="flex items-start gap-4">
+          <div class="w-12 h-12 rounded-xl bg-error/10 border border-error/20 flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h3 class="font-bold text-base">Cuentas en Riesgo</h3>
+              {% if n_critical > 0 %}<span class="badge badge-error badge-sm">{{ n_critical }} crítica{% if n_critical != 1 %}s{% endif %}</span>{% endif %}
+              {% if n_warning > 0 %}<span class="badge badge-warning badge-sm">{{ n_warning }} aviso{% if n_warning != 1 %}s{% endif %}</span>{% endif %}
+            </div>
+            <p class="text-sm text-base-content/50 mt-1 leading-relaxed">
+              Detalle de empresas en estado crítico o atención, con técnicos responsables y rendimiento. Ideal para revisión diaria.
+            </p>
+          </div>
+        </div>
+        <div class="pt-1 border-t border-base-200">
+          <a href="/admin/report/urgent" class="btn btn-sm btn-error gap-2 w-full">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+            Ver Cuentas en Riesgo
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ranking de Puntualidad -->
+    <div class="card bg-base-100 border border-base-200 hover:border-warning/40 transition-colors">
+      <div class="card-body p-6 gap-4">
+        <div class="flex items-start gap-4">
+          <div class="w-12 h-12 rounded-xl bg-warning/10 border border-warning/20 flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-bold text-base">Ranking de Puntualidad</h3>
+            <p class="text-sm text-base-content/50 mt-1 leading-relaxed">
+              Clasificación de técnicos por % de rotaciones a tiempo, con retraso medio y peor retraso. Filtrable por periodo.
+            </p>
+          </div>
+        </div>
+        <div class="pt-1 border-t border-base-200">
+          <a href="/admin/reports/ranking" class="btn btn-sm btn-warning gap-2 w-full">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            Ver Ranking
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Matriz de Acceso -->
+    <div class="card bg-base-100 border border-base-200 hover:border-info/40 transition-colors">
+      <div class="card-body p-6 gap-4">
+        <div class="flex items-start gap-4">
+          <div class="w-12 h-12 rounded-xl bg-info/10 border border-info/20 flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-bold text-base">Matriz de Acceso</h3>
+            <p class="text-sm text-base-content/50 mt-1 leading-relaxed">
+              Vista cruzada técnicos × empresas con el estado de cada asignación (OK, en aviso, crítico) de un vistazo.
+            </p>
+          </div>
+        </div>
+        <div class="pt-1 border-t border-base-200">
+          <a href="/admin/matrix" class="btn btn-sm btn-info gap-2 w-full">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/>
+            </svg>
+            Ver Matriz
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calendario de Vencimientos -->
+    <div class="card bg-base-100 border border-base-200 hover:border-success/40 transition-colors">
+      <div class="card-body p-6 gap-4">
+        <div class="flex items-start gap-4">
+          <div class="w-12 h-12 rounded-xl bg-success/10 border border-success/20 flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-bold text-base">Calendario y Actividad</h3>
+            <p class="text-sm text-base-content/50 mt-1 leading-relaxed">
+              Calendario mensual de vencimientos próximos por acceso, más un heatmap de la actividad de rotaciones del último año.
+            </p>
+          </div>
+        </div>
+        <div class="pt-1 border-t border-base-200">
+          <a href="/admin/reports/calendar" class="btn btn-sm btn-success gap-2 w-full">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            Ver Calendario
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

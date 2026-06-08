@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Confirmar rotación · ACCESOS</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.11.1/dist/full.min.css" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background:#0f1117; min-height:100vh; display:flex; align-items:center; justify-content:center;
+           background-image:radial-gradient(ellipse 70% 50% at 50% 0%, rgba(59,130,246,0.08), transparent 60%); }
+    .card-glass { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.09);
+                  border-radius:1rem; box-shadow:0 20px 60px rgba(0,0,0,0.5); max-width:440px; width:92%; }
+  </style>
+</head>
+<body>
+  <div class="card-glass p-8 text-center">
+    <div class="flex items-center justify-center gap-2 mb-6">
+      <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(99,102,241,0.15));border:1px solid rgba(59,130,246,0.3)">
+        <svg class="h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+      </div>
+      <span class="font-bold tracking-wide text-base-content/80">ACCESOS</span>
+    </div>
+
+    {% if state == 'confirm' %}
+      <div class="text-5xl mb-3">🔐</div>
+      <h1 class="text-lg font-bold text-base-content/90 mb-2">Confirmar rotación</h1>
+      <p class="text-sm text-base-content/55 leading-relaxed mb-1">
+        Hola <b class="text-base-content/80">{{ tech }}</b>, ¿confirmas que has rotado la contraseña de acceso del cliente
+        <b class="text-base-content/80">{{ company }}</b>?
+      </p>
+      <p class="text-xs mb-6 {% if days <= 2 %}text-red-400{% elif days <= 7 %}text-yellow-400{% else %}text-emerald-400{% endif %}">
+        {% if days <= 0 %}Acceso expirado{% else %}Quedan {{ days }} día(s){% endif %}
+      </p>
+      <form method="post" action="/confirm/{{ token }}">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+        <button type="submit" class="btn btn-success w-full gap-2">✓ Sí, confirmo la rotación</button>
+      </form>
+      <p class="text-xs text-base-content/30 mt-4">Si no has sido tú, ignora este mensaje.</p>
+
+    {% elif state == 'done' %}
+      <div class="text-5xl mb-3">✅</div>
+      <h1 class="text-lg font-bold text-emerald-400 mb-2">¡Rotación confirmada!</h1>
+      <p class="text-sm text-base-content/55 leading-relaxed mb-6">
+        Hemos registrado la rotación de <b class="text-base-content/80">{{ company }}</b>.
+        {% if late %}Se registró con {{ late }} día(s) de retraso.{% else %}¡A tiempo, gracias!{% endif %}
+        Dejarás de recibir avisos para este acceso.
+      </p>
+      <a href="/login" class="btn btn-outline btn-sm">Ir a la consola</a>
+
+    {% elif state == 'expired' %}
+      <div class="text-5xl mb-3">⌛</div>
+      <h1 class="text-lg font-bold text-yellow-400 mb-2">Enlace caducado</h1>
+      <p class="text-sm text-base-content/55 leading-relaxed mb-6">
+        Este enlace de confirmación rápida ha expirado por seguridad. Entra a la consola para confirmar la rotación manualmente.
+      </p>
+      <a href="/login" class="btn btn-primary btn-sm">Entrar a la consola</a>
+
+    {% elif state == 'notfound' %}
+      <div class="text-5xl mb-3">🔍</div>
+      <h1 class="text-lg font-bold text-base-content/80 mb-2">Acceso no encontrado</h1>
+      <p class="text-sm text-base-content/55 leading-relaxed mb-6">
+        Esta asignación ya no existe (puede haberse reasignado o archivado). Entra a la consola para revisarlo.
+      </p>
+      <a href="/login" class="btn btn-outline btn-sm">Ir a la consola</a>
+
+    {% else %}
+      <div class="text-5xl mb-3">⚠️</div>
+      <h1 class="text-lg font-bold text-red-400 mb-2">Enlace no válido</h1>
+      <p class="text-sm text-base-content/55 leading-relaxed mb-6">
+        El enlace no es válido. Entra a la consola para confirmar la rotación.
+      </p>
+      <a href="/login" class="btn btn-primary btn-sm">Entrar a la consola</a>
+    {% endif %}
+  </div>
+</body>
+</html>

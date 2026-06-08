@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Admin{% endblock %}
+{% block page_title %}Dashboard Global{% endblock %}
+
+{% block content %}
+<style>
+  /* ── Compliance card ── */
+  .compliance-card {
+    background: rgba(255,255,255,0.03);
+    border-radius: 1rem;
+    border: 1px solid rgba(255,255,255,0.07);
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+  .compliance-card-inner { padding: 1.5rem; }
+
+  /* ── Metric mini cards ── */
+  .metric-mini {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 0.75rem;
+    padding: 0.875rem 1rem;
+    text-align: center;
+    min-width: 80px;
+  }
+  .metric-mini-value { font-size: 1.375rem; font-weight: 800; line-height: 1; }
+  .metric-mini-label { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.35; margin-top: 0.35rem; }
+  .metric-mini-sub   { font-size: 0.6rem; opacity: 0.2; margin-top: 0.15rem; }
+
+  /* ── Glass panels ── */
+  .glass-panel {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 0.875rem;
+    overflow: hidden;
+  }
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.875rem 1.25rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .panel-title {
+    font-size: 0.65rem; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: rgba(166,173,187,0.4);
+  }
+
+  /* ── Table ── */
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    color: rgba(166,173,187,0.3); padding: 0.625rem 1.25rem; text-align: left;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .data-table td { padding: 0.625rem 1.25rem; font-size: 0.8125rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .data-table tr:last-child td { border-bottom: none; }
+
+  /* ── Status badges inline ── */
+  .s-pill {
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    padding: 0.15rem 0.5rem; border-radius: 9999px;
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.07em;
+  }
+  .s-ok   { background:rgba(34,197,94,0.12);  color:#4ade80; border:1px solid rgba(34,197,94,0.25); }
+  .s-warn { background:rgba(234,179,8,0.12);  color:#facc15; border:1px solid rgba(234,179,8,0.25); }
+  .s-crit { background:rgba(239,68,68,0.12);  color:#f87171; border:1px solid rgba(239,68,68,0.25); }
+
+  /* ── Quick action buttons ── */
+  .quick-btn {
+    display: flex; align-items: center; gap: 0.625rem;
+    width: 100%; padding: 0.625rem 0.875rem; border-radius: 0.625rem;
+    font-size: 0.8rem; font-weight: 500; transition: all 0.15s;
+    border: 1px solid rgba(255,255,255,0.07);
+    background: rgba(255,255,255,0.03);
+    color: rgba(166,173,187,0.7);
+    text-decoration: none;
+  }
+  .quick-btn:hover { background:rgba(255,255,255,0.06); color:rgba(166,173,187,0.9); }
+  .quick-btn.primary { border-color:rgba(59,130,246,0.25); color:#93c5fd; background:rgba(59,130,246,0.07); }
+  .quick-btn.primary:hover { background:rgba(59,130,246,0.12); }
+  .quick-btn.secondary { border-color:rgba(99,102,241,0.25); color:#a5b4fc; background:rgba(99,102,241,0.07); }
+  .quick-btn.secondary:hover { background:rgba(99,102,241,0.12); }
+
+  /* ── Activity log ── */
+  .log-item { display:flex; align-items:flex-start; gap:0.75rem; padding:0.75rem 1.25rem; border-bottom:1px solid rgba(255,255,255,0.03); }
+  .log-item:last-child { border-bottom:none; }
+  .log-dot { width:6px; height:6px; border-radius:9999px; margin-top:4px; flex-shrink:0; }
+  .log-dot-ok   { background:#4ade80; box-shadow:0 0 5px rgba(74,222,128,0.4); }
+  .log-dot-warn { background:#facc15; box-shadow:0 0 5px rgba(250,204,21,0.4); }
+  .log-dot-err  { background:#f87171; box-shadow:0 0 5px rgba(248,113,113,0.4); }
+
+  /* ── Progress bar ── */
+  .health-bar { height: 6px; border-radius:9999px; background:rgba(255,255,255,0.06); overflow:hidden; }
+  .health-fill { height:100%; border-radius:9999px; transition:width 0.8s ease; }
+</style>
+
+<!-- ── Compliance Global ── -->
+<div class="compliance-card">
+  <!-- Top accent -->
+  <div class="h-0.5 w-full" style="background:linear-gradient(90deg,transparent,rgba({{ compliance_color == 'success' and '34,197,94' or compliance_color == 'warning' and '234,179,8' or '239,68,68' }},0.5),transparent)"></div>
+
+  <div class="compliance-card-inner">
+    <div class="flex items-center justify-between flex-wrap gap-6">
+
+      <!-- Radial + label -->
+      <div class="flex items-center gap-6">
+        <div class="radial-progress font-bold text-lg shrink-0
+          {% if compliance_color == 'success' %}text-emerald-400{% elif compliance_color == 'warning' %}text-yellow-400{% else %}text-red-400{% endif %}"
+             style="--value:{{ compliance_pct }}; --size:7rem; --thickness:6px;">
+          {{ compliance_pct }}%
+        </div>
+        <div>
+          <p class="text-xl font-extrabold flex items-center
+            {% if compliance_color == 'success' %}text-emerald-400{% elif compliance_color == 'warning' %}text-yellow-400{% else %}text-red-400{% endif %}">
+            {{ compliance_label }}
+            <span class="help-i" tabindex="0" style="width:16px;height:16px;font-size:10px;margin-left:8px;border-color:rgba(166,173,187,0.35)"
+                  data-help="Cómo se calcula: solo penalizan los elementos en estado CRÍTICO (los de 'Aviso' aún cumplen). Las unidades son las empresas + los técnicos con empresas asignadas. % = unidades en regla ÷ total de unidades. Por eso puede dar 100% aunque haya empresas en 'Aviso'.">i</span>
+          </p>
+          <p class="text-xs text-base-content/30 mt-1.5 leading-relaxed max-w-xs">
+            <span class="text-base-content/50 font-medium">{{ total_units - failed_units }}</span> / {{ total_units }} unidades en regla
+            <span class="block text-base-content/20 mt-0.5">empresas no críticas + técnicos sin críticos</span>
+          </p>
+          {% if failed_units > 0 %}
+          <div class="flex items-center gap-1.5 mt-2">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-red-400" style="box-shadow:0 0 5px #f87171"></span>
+            <span class="text-xs text-red-400/70">{{ failed_units }} unidad(es) requieren acción</span>
+          </div>
+          {% else %}
+          <div class="flex items-center gap-1.5 mt-2">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 5px #4ade80"></span>
+            <span class="text-xs text-emerald-400/70">Todo en regla · sin elementos críticos</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Metric mini cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="metric-mini">
+          <div class="metric-mini-value text-emerald-400">{{ ok_companies }}</div>
+          <div class="metric-mini-label">Emp. OK</div>
+        </div>
+        <div class="metric-mini">
+          <div class="metric-mini-value text-yellow-400">{{ warning_companies }}</div>
+          <div class="metric-mini-label">Atención</div>
+          <div class="metric-mini-sub">no penaliza</div>
+        </div>
+        <div class="metric-mini">
+          <div class="metric-mini-value text-red-400">{{ critical_companies }}</div>
+          <div class="metric-mini-label">Críticas</div>
+        </div>
+        <div class="metric-mini">
+          <div class="metric-mini-value {% if techs_critical > 0 %}text-red-400{% else %}text-emerald-400{% endif %}">{{ techs_critical }}</div>
+          <div class="metric-mini-label">Téc. KO</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Health bar -->
+    <div class="mt-5">
+      <div class="flex justify-between text-xs text-base-content/25 mb-1.5">
+        <span>Salud global del sistema</span>
+        <span>{{ total_companies }} empresas · {{ total_techs }} técnicos</span>
+      </div>
+      <div class="health-bar">
+        <div class="health-fill {% if compliance_color == 'success' %}bg-emerald-500{% elif compliance_color == 'warning' %}bg-yellow-500{% else %}bg-red-500{% endif %}"
+             style="width:{{ compliance_pct }}%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Gráficas ── -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+
+  <!-- Donut: estado actual -->
+  <div class="glass-panel">
+    <div class="panel-header">
+      <span class="panel-title">Distribución actual<span class="help-i" tabindex="0" data-help="Estado por días restantes hasta el próximo cambio de contraseña: CRÍTICO cuando quedan 2 días o menos (o ya expiró), AVISO cuando quedan 7 días o menos, y OK cuando quedan más de 7.">i</span></span>
+    </div>
+    <div class="p-5 flex items-center justify-center" style="min-height:240px">
+      <canvas id="chart-donut" style="max-height:220px"></canvas>
+    </div>
+  </div>
+
+  <!-- Línea: tendencia de cumplimiento -->
+  <div class="lg:col-span-2 glass-panel">
+    <div class="panel-header">
+      <span class="panel-title">Tendencia de cumplimiento</span>
+      <span class="text-xs text-base-content/25">{{ history.labels|length }} día(s) registrados</span>
+    </div>
+    <div class="p-5" style="min-height:240px">
+      {% if history.labels|length >= 2 %}
+      <canvas id="chart-trend" style="max-height:220px"></canvas>
+      {% else %}
+      <div class="flex flex-col items-center justify-center h-full gap-2 text-base-content/25" style="min-height:200px">
+        <svg class="h-9 w-9" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 12l3-3 3 3 4-4M3 21h18"/></svg>
+        <p class="text-sm">Recopilando datos…</p>
+        <p class="text-xs text-base-content/20 text-center max-w-xs">La gráfica de tendencia necesita al menos 2 días de histórico. Se guarda una foto automática cada día.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ── Próximos Vencimientos ── -->
+<div class="glass-panel mb-5">
+  <div class="panel-header">
+    <span class="panel-title">Próximos Vencimientos</span>
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-3 text-xs">
+        {% if exp_overdue %}<span style="color:#f87171"><b>{{ exp_overdue }}</b> vencido(s)</span>{% endif %}
+        <span style="color:#facc15"><b>{{ exp_7 }}</b> en 7 días</span>
+        <span class="text-base-content/45"><b>{{ exp_30 }}</b> en 30 días</span>
+      </div>
+      <a href="/admin/reports/calendar" class="text-xs text-blue-400/60 hover:text-blue-400 transition-colors">Ver calendario completo →</a>
+    </div>
+  </div>
+  <div class="p-4">
+    {% if upcoming %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      {% for e in upcoming %}
+      {% set col = '#f87171' if e.status == 'critical' else ('#facc15' if e.status == 'warning' else '#4ade80') %}
+      <a href="/admin/company/{{ e.company_id }}"
+         class="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg transition-colors hover:bg-white/[0.04]"
+         style="border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.015)">
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-base-content/80 truncate">{{ e.company }}</p>
+          <p class="text-xs text-base-content/35 truncate">{{ e.tech }}</p>
+        </div>
+        <span class="font-mono font-bold text-sm shrink-0" style="color:{{ col }}">
+          {% if e.days <= 0 %}EXP{% else %}{{ e.days }}d{% endif %}
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="flex flex-col items-center py-8 gap-2 text-base-content/25">
+      <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <p class="text-xs">No hay accesos asignados con vencimiento.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Main grid ── -->
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+
+  <!-- Companies table -->
+  <div class="xl:col-span-2 glass-panel">
+    <div class="panel-header">
+      <span class="panel-title">Estado de Empresas</span>
+      <div class="flex items-center gap-3">
+        <a href="/admin/matrix" class="text-xs text-indigo-400/60 hover:text-indigo-400 transition-colors">🔲 Ver matriz →</a>
+        <a href="/admin/companies" class="text-xs text-blue-400/60 hover:text-blue-400 transition-colors">Ver todo →</a>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Empresa</th>
+            <th>Días</th>
+            <th>Estado</th>
+            <th>Técnicos</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in companies[:15] %}
+          <tr>
+            <td>
+              <a href="/admin/company/{{ c.id }}" class="font-medium text-base-content/70 hover:text-blue-400 transition-colors text-sm">
+                {{ c.name }}
+              </a>
+            </td>
+            <td>
+              <span class="font-mono font-bold text-sm
+                {% if c.days_remaining <= 0 %}text-red-400
+                {% elif c.status == 'critical' %}text-red-400
+                {% elif c.status == 'warning' %}text-yellow-400
+                {% else %}text-emerald-400{% endif %}">
+                {% if c.days_remaining <= 0 %}EXP{% else %}{{ c.days_remaining }}d{% endif %}
+              </span>
+            </td>
+            <td>
+              {% if c.status == 'critical' %}
+                <span class="s-pill s-crit">CRÍTICO</span>
+              {% elif c.status == 'warning' %}
+                <span class="s-pill s-warn">AVISO</span>
+              {% else %}
+                <span class="s-pill s-ok">OK</span>
+              {% endif %}
+            </td>
+            <td class="text-xs text-base-content/30">
+              {% if c.technicians %}
+                {{ c.technicians|map(attribute='username')|join(', ') }}
+              {% else %}
+                <span class="text-red-400/40">Sin asignar</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="flex flex-col gap-4">
+
+    <!-- Quick actions -->
+    <div class="glass-panel">
+      <div class="panel-header">
+        <span class="panel-title">Acciones Rápidas</span>
+      </div>
+      <div class="flex flex-col gap-2 p-4">
+        <a href="/admin/bulk-import" class="quick-btn primary">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Importación Masiva
+        </a>
+        <a href="/admin/reports" class="quick-btn secondary">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Ver Reportes
+        </a>
+        <a href="/admin/audit-logs" class="quick-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          Logs de Auditoría
+        </a>
+      </div>
+    </div>
+
+    <!-- Recent activity -->
+    <div class="glass-panel flex-1">
+      <div class="panel-header">
+        <span class="panel-title">Actividad Reciente</span>
+        <a href="/admin/audit-logs" class="text-xs text-blue-400/60 hover:text-blue-400 transition-colors">Ver todo →</a>
+      </div>
+      <div>
+        {% for log in recent_logs %}
+        <div class="log-item">
+          {% if log.level == 'warning' %}
+            <div class="log-dot log-dot-warn"></div>
+          {% elif log.level == 'error' %}
+            <div class="log-dot log-dot-err"></div>
+          {% else %}
+            <div class="log-dot log-dot-ok"></div>
+          {% endif %}
+          <div class="min-w-0">
+            <p class="text-xs text-base-content/60 leading-snug truncate">{{ log.action }}</p>
+            <p class="text-xs text-base-content/25 mt-0.5">
+              {{ log.timestamp | fmt_datetime('%d/%m %H:%M') }}
+              {% if log.user %} · {{ log.user.username }}{% endif %}
+            </p>
+          </div>
+        </div>
+        {% else %}
+        <div class="flex flex-col items-center py-8 gap-2 text-base-content/20">
+          <svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          <p class="text-xs">Sin actividad registrada aún</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  if (typeof Chart === 'undefined') return;
+  Chart.defaults.color = 'rgba(166,173,187,0.5)';
+  Chart.defaults.font.size = 11;
+
+  // ── Donut: distribución actual ──
+  const donut = document.getElementById('chart-donut');
+  if (donut) {
+    new Chart(donut, {
+      type: 'doughnut',
+      data: {
+        labels: ['OK', 'En aviso', 'Crítico'],
+        datasets: [{
+          data: [{{ ok_companies }}, {{ warning_companies }}, {{ critical_companies }}],
+          backgroundColor: ['#22c55e', '#facc15', '#ef4444'],
+          borderColor: 'rgba(15,17,23,0.8)',
+          borderWidth: 3,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '62%',
+        plugins: { legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true, pointStyle: 'circle' } } },
+      },
+    });
+  }
+
+  // ── Línea: tendencia de cumplimiento ──
+  const trend = document.getElementById('chart-trend');
+  if (trend) {
+    const labels = {{ history.labels | tojson }};
+    const compliance = {{ history.compliance | tojson }};
+    const critical = {{ history.critical | tojson }};
+    const ctx = trend.getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 0, 220);
+    grad.addColorStop(0, 'rgba(59,130,246,0.35)');
+    grad.addColorStop(1, 'rgba(59,130,246,0.02)');
+    new Chart(trend, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Cumplimiento %', data: compliance, yAxisID: 'y',
+            borderColor: '#3b82f6', backgroundColor: grad, fill: true,
+            tension: 0.35, pointRadius: 2, borderWidth: 2,
+          },
+          {
+            label: 'Empresas críticas', data: critical, yAxisID: 'y1',
+            borderColor: '#ef4444', backgroundColor: 'transparent',
+            tension: 0.35, pointRadius: 2, borderWidth: 2, borderDash: [4, 3],
+          },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'line', padding: 14 } } },
+        scales: {
+          y:  { position: 'left', min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { callback: v => v + '%' } },
+          y1: { position: 'right', min: 0, grid: { drawOnChartArea: false }, ticks: { precision: 0 } },
+          x:  { grid: { display: false } },
+        },
+      },
+    });
+  }
+})();
+</script>
+{% endblock %}

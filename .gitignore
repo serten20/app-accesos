@@ -1,0 +1,21 @@
+# Secretos y entorno
+.env
+data/secret_key
+
+# Base de datos y datos de runtime
+data/
+uploads/
+logs/
+Dockerfile.test
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config local de Claude Code (personal, no compartir)
+.claude/settings.local.json

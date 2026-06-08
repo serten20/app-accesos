@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Importación Masiva{% endblock %}
+{% block page_title %}Importación Masiva{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl">
+
+  <!-- Mode Tabs -->
+  {% set current_mode = mode or request.query_params.get('mode', 'companies') %}
+  <div class="tabs tabs-boxed bg-base-100 border border-base-200 mb-6 w-fit">
+    <a href="/admin/bulk-import?mode=companies"
+       class="tab {% if current_mode == 'companies' %}tab-active{% endif %}">
+      🏢 Empresas
+    </a>
+    <a href="/admin/bulk-import?mode=users"
+       class="tab {% if current_mode == 'users' %}tab-active{% endif %}">
+      👤 Usuarios / Técnicos
+    </a>
+  </div>
+
+  {% if current_mode == 'companies' %}
+  <!-- FORMAT HINT COMPANIES -->
+  <div class="alert bg-base-100 border border-primary/20 text-sm mb-5 gap-3">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <div class="flex-1">
+      <p class="font-semibold">Formato CSV — Empresas</p>
+      <code class="text-xs text-primary/80 block mt-1">name,vpn_url,doc_url,expiry_days,notes,last_changed</code>
+      <p class="text-xs text-base-content/40 mt-1">Obligatorios: <b>name</b>, <b>expiry_days</b> · Opcionales: vpn_url, doc_url, notes, <b>last_changed</b> (fecha de inicio; vacío = hoy; AAAA-MM-DD o DD/MM/AAAA)</p>
+    </div>
+    <div class="flex gap-2 shrink-0">
+      <a href="/admin/bulk-import/sample/companies/csv" class="btn btn-xs btn-outline btn-primary">⬇ .CSV</a>
+      <a href="/admin/bulk-import/sample/companies/txt" class="btn btn-xs btn-outline">⬇ .TXT</a>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- FORMAT HINT USERS -->
+  <div class="alert bg-base-100 border border-secondary/20 text-sm mb-5 gap-3">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-secondary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <div class="flex-1">
+      <p class="font-semibold">Formato CSV — Usuarios / Técnicos</p>
+      <code class="text-xs text-secondary/80 block mt-1">username,email,password,must_change_password</code>
+      <p class="text-xs text-base-content/40 mt-1">Obligatorios: <b>username</b>, <b>email</b>, <b>password</b> · Opcional: must_change_password (si/no)</p>
+    </div>
+    <div class="flex gap-2 shrink-0">
+      <a href="/admin/bulk-import/sample/users/csv" class="btn btn-xs btn-outline btn-secondary">⬇ .CSV</a>
+      <a href="/admin/bulk-import/sample/users/txt" class="btn btn-xs btn-outline">⬇ .TXT</a>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not preview %}
+  <!-- Upload Form -->
+  <div class="card bg-base-100 border border-base-200">
+    <div class="card-body p-6 gap-5">
+      <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Subir Archivo</h2>
+      <form method="post" action="/admin/bulk-import/preview" enctype="multipart/form-data" class="flex flex-col gap-4">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+        <input type="hidden" name="mode" value="{{ current_mode }}" />
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Archivo CSV o TXT</span></label>
+          <input type="file" name="file" accept=".csv,.txt" required
+                 class="file-input file-input-bordered {% if current_mode == 'users' %}file-input-secondary{% else %}file-input-primary{% endif %} file-input-sm bg-base-200 w-full max-w-sm" />
+        </div>
+        <button type="submit" class="btn {% if current_mode == 'users' %}btn-secondary{% else %}btn-primary{% endif %} btn-sm w-fit">
+          Previsualizar →
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- Preview Table -->
+  <div class="card bg-base-100 border border-base-200 mb-4">
+    <div class="card-body p-0">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-base-200">
+        <div>
+          <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Previsualización
+            — {% if current_mode == 'users' %}Usuarios{% else %}Empresas{% endif %}
+          </h2>
+          <p class="text-xs text-base-content/40 mt-0.5">
+            <span class="text-success font-bold">{{ valid_count }} válidas</span>
+            {% if error_count %} · <span class="text-error font-bold">{{ error_count }} con errores</span>{% endif %}
+          </p>
+        </div>
+        <a href="/admin/bulk-import?mode={{ current_mode }}" class="btn btn-xs btn-ghost">Cancelar</a>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr class="text-xs uppercase tracking-wider text-base-content/40">
+              <th>#</th>
+              {% if current_mode == 'companies' %}
+              <th>Nombre</th><th>URL VPN</th><th>Doc.</th><th>Días Exp.</th><th>Inicio</th>
+              {% else %}
+              <th>Username</th><th>Email</th><th>Contraseña</th><th>Cambio Login</th>
+              {% endif %}
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in preview %}
+            <tr class="{% if not row.valid %}bg-error/5{% endif %} hover:bg-base-200/40">
+              <td class="text-xs text-base-content/40">{{ row.line }}</td>
+              <td class="font-medium text-sm {% if not row.valid %}text-error/80{% endif %}">{{ row.col1 or '—' }}</td>
+              <td class="text-xs text-base-content/50 max-w-[160px] truncate">{{ row.col2 or '—' }}</td>
+              <td class="text-xs">
+                {% if current_mode == 'companies' %}{{ row.col3 }}{% else %}
+                  <span class="text-base-content/30">••••</span>
+                {% endif %}
+              </td>
+              <td class="text-xs text-base-content/40">{{ row.col4 or '—' }}</td>
+              {% if current_mode == 'companies' %}
+              <td class="text-xs text-base-content/40">{{ row.col6 or 'hoy' }}</td>
+              {% endif %}
+              <td>
+                {% if row.valid %}
+                  <span class="badge badge-success badge-xs">OK</span>
+                {% else %}
+                  <div class="tooltip tooltip-left" data-tip="{{ row.errors|join(' · ') }}">
+                    <span class="badge badge-error badge-xs cursor-help">Error ⚠</span>
+                  </div>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {% if valid_count > 0 %}
+  <form method="post" action="/admin/bulk-import/confirm">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+    <input type="hidden" name="import_token" value="{{ import_token }}" />
+    <div class="flex gap-3 items-center">
+      <button type="submit" class="btn btn-success btn-sm">
+        ✓ Importar {{ valid_count }}
+        {% if current_mode == 'users' %}usuario(s){% else %}empresa(s){% endif %}
+      </button>
+      <a href="/admin/bulk-import?mode={{ current_mode }}" class="btn btn-sm btn-ghost text-base-content/50">Cancelar</a>
+    </div>
+  </form>
+  {% else %}
+  <div class="alert alert-warning text-sm">
+    No hay filas válidas para importar. Corrige el archivo y vuelve a intentarlo.
+  </div>
+  {% endif %}
+  {% endif %}
+
+</div>
+{% endblock %}

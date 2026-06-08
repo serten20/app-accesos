@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Historial de Rotaciones{% endblock %}
+{% block page_title %}Historial de Rotaciones{% endblock %}
+
+{% block content %}
+<style>
+  .glass-panel { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:0.875rem; overflow:hidden; }
+  .kpi { background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.06); border-radius:0.75rem; padding:1rem 1.25rem; }
+  .kpi-label { font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:rgba(166,173,187,0.4); }
+  .kpi-value { font-size:1.6rem; font-weight:800; margin-top:0.25rem; }
+  .data-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+  .data-table th { text-align:left; padding:0.6rem 1rem; font-size:0.6rem; letter-spacing:0.08em; text-transform:uppercase; color:rgba(166,173,187,0.35); border-bottom:1px solid rgba(255,255,255,0.06); }
+  .data-table td { padding:0.55rem 1rem; border-bottom:1px solid rgba(255,255,255,0.04); color:rgba(166,173,187,0.75); }
+  .data-table tr:last-child td { border-bottom:none; }
+  .data-table tr:hover td { background:rgba(255,255,255,0.02); }
+  .pill { display:inline-flex; padding:0.1rem 0.55rem; border-radius:9999px; font-size:0.6rem; font-weight:700; letter-spacing:0.05em; }
+  .pill-ontime { background:rgba(34,197,94,0.12); color:#4ade80; border:1px solid rgba(34,197,94,0.2); }
+  .pill-late   { background:rgba(239,68,68,0.1); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
+  .mono { font-family:monospace; }
+</style>
+
+<!-- KPIs -->
+<div class="grid grid-cols-3 gap-4 mb-5">
+  <div class="kpi">
+    <div class="kpi-label">Rotaciones totales</div>
+    <div class="kpi-value text-base-content/80">{{ total }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">A tiempo</div>
+    <div class="kpi-value" style="color:#4ade80">{{ total - late }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Con retraso</div>
+    <div class="kpi-value" style="color:#f87171">{{ late }}</div>
+  </div>
+</div>
+
+<div class="glass-panel">
+  <div class="flex items-center justify-between px-5 py-3" style="border-bottom:1px solid rgba(255,255,255,0.05)">
+    <span class="text-xs font-bold uppercase tracking-wider text-base-content/40">Últimas {{ rows|length }} rotaciones</span>
+    <span class="text-xs text-base-content/25">Más recientes primero</span>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Fecha confirmación</th>
+        <th>Técnico</th>
+        <th>Empresa</th>
+        <th>Rotada el</th>
+        <th style="text-align:right">Puntualidad</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="mono text-base-content/55">{{ r.confirmed_at.strftime('%d/%m/%Y %H:%M') if r.confirmed_at else '—' }}</td>
+        <td class="font-medium text-base-content/85">{{ r.technician_name or (r.technician.username if r.technician else '—') }}</td>
+        <td>{{ r.company_name or (r.company.name if r.company else '—') }}</td>
+        <td class="mono text-base-content/50">{{ r.rotated_on.strftime('%d/%m/%Y') if r.rotated_on else '—' }}</td>
+        <td style="text-align:right">
+          {% if r.days_late and r.days_late > 0 %}
+          <span class="pill pill-late">{{ r.days_late }}d tarde</span>
+          {% else %}
+          <span class="pill pill-ontime">A tiempo</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-center text-base-content/25 py-10">Aún no hay rotaciones registradas. Aparecerán aquí cuando los técnicos confirmen cambios.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

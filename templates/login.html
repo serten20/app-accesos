@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — Gestión de Accesos</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.11.1/dist/full.min.css" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* ── Animated gradient background ── */
+    body {
+      background-color: #0f1117;
+      background-image:
+        radial-gradient(ellipse 80% 60% at 20% 30%, rgba(59,130,246,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 70%, rgba(99,102,241,0.10) 0%, transparent 60%);
+    }
+
+    /* ── Dot grid pattern ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Glass card ── */
+    .glass-card {
+      background: rgba(255,255,255,0.04);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow:
+        0 0 0 1px rgba(59,130,246,0.08),
+        0 24px 48px rgba(0,0,0,0.5),
+        inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+
+    /* ── Logo glow ── */
+    .logo-glow {
+      background: radial-gradient(circle at center, rgba(59,130,246,0.2) 0%, transparent 70%);
+      border: 1px solid rgba(59,130,246,0.3);
+      box-shadow: 0 0 24px rgba(59,130,246,0.2), inset 0 0 12px rgba(59,130,246,0.05);
+    }
+
+    /* ── Input focus glow ── */
+    .input-glow:focus {
+      border-color: rgba(59,130,246,0.6) !important;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.12), 0 0 12px rgba(59,130,246,0.08);
+      outline: none;
+    }
+
+    /* ── Submit button ── */
+    .btn-cyber {
+      background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+      border: none;
+      box-shadow: 0 4px 16px rgba(59,130,246,0.3);
+      transition: all 0.2s ease;
+      letter-spacing: 0.1em;
+    }
+    .btn-cyber:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(59,130,246,0.4);
+      background: linear-gradient(135deg, #60a5fa 0%, #818cf8 100%);
+    }
+    .btn-cyber:active { transform: translateY(0); }
+
+    /* ── Scanning line animation ── */
+    @keyframes scan {
+      0%   { transform: translateY(-100%); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { transform: translateY(800%); opacity: 0; }
+    }
+    .scan-line {
+      position: absolute;
+      left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(59,130,246,0.6), transparent);
+      animation: scan 4s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    /* ── Pulsing ring ── */
+    @keyframes pulse-ring {
+      0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.3); }
+      70%  { box-shadow: 0 0 0 12px rgba(59,130,246,0); }
+      100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+    }
+    .pulse-ring { animation: pulse-ring 2.5s ease-out infinite; }
+
+    /* ── Label style ── */
+    .field-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(166,173,187,0.5);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center font-mono relative">
+
+  <!-- Corner decorations -->
+  <div class="fixed top-0 left-0 w-48 h-48 pointer-events-none opacity-30"
+       style="background: radial-gradient(circle at 0 0, rgba(59,130,246,0.3), transparent 70%)"></div>
+  <div class="fixed bottom-0 right-0 w-48 h-48 pointer-events-none opacity-30"
+       style="background: radial-gradient(circle at 100% 100%, rgba(99,102,241,0.3), transparent 70%)"></div>
+
+  <div class="relative z-10 w-full max-w-sm px-4">
+
+    <!-- Brand header -->
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl logo-glow pulse-ring mb-5 relative overflow-hidden">
+        <div class="scan-line"></div>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+      </div>
+      <h1 class="text-3xl font-bold tracking-[0.25em] uppercase" style="
+        background: linear-gradient(135deg, #60a5fa, #a5b4fc);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;">
+        ACCESOS
+      </h1>
+      <p class="text-xs text-base-content/30 mt-2 tracking-widest uppercase">Security Access Manager</p>
+      <!-- Status indicator -->
+      <div class="flex items-center justify-center gap-2 mt-3">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 6px #34d399"></span>
+        <span class="text-xs text-emerald-400/60 tracking-wider">SISTEMA OPERATIVO</span>
+      </div>
+    </div>
+
+    <!-- Glass card -->
+    <div class="glass-card rounded-2xl overflow-hidden">
+
+      <!-- Top accent line -->
+      <div class="h-0.5 w-full" style="background: linear-gradient(90deg, transparent, #3b82f6, #6366f1, transparent)"></div>
+
+      <div class="p-7">
+        <h2 class="text-sm font-semibold text-base-content/50 text-center uppercase tracking-widest mb-6">
+          Autenticación
+        </h2>
+
+        {% if error %}
+        <div class="{% if error_type == 'disabled' %}border-amber-500/30 bg-amber-500/10 text-amber-400{% else %}border-red-500/30 bg-red-500/10 text-red-400{% endif %} border rounded-xl px-4 py-3 text-xs flex items-start gap-2 mb-5">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            {% if error_type == 'disabled' %}
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+            {% else %}
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            {% endif %}
+          </svg>
+          <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <form method="post" action="/login" class="flex flex-col gap-5">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+
+          <div class="flex flex-col gap-1.5">
+            <label class="field-label">Usuario</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400/50">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+              </span>
+              <input type="text" name="username" required autofocus
+                class="input input-sm w-full pl-9 input-glow transition-all duration-200"
+                style="background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.08);"
+                placeholder="username" />
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label class="field-label">Contraseña</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400/50">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+              </span>
+              <input type="password" name="password" required
+                class="input input-sm w-full pl-9 input-glow transition-all duration-200"
+                style="background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.08);"
+                placeholder="••••••••" />
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-sm btn-cyber text-white w-full mt-1">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+            </svg>
+            ACCEDER
+          </button>
+        </form>
+      </div>
+
+      <!-- Bottom accent line -->
+      <div class="h-0.5 w-full" style="background: linear-gradient(90deg, transparent, rgba(99,102,241,0.4), transparent)"></div>
+    </div>
+
+    <p class="text-center text-xs text-base-content/15 mt-6 tracking-wider">© 2026 · USO INTERNO · LOGICALIS</p>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% block title %}Mis Empresas{% endblock %}
+{% block page_title %}Mis Empresas Asignadas{% endblock %}
+
+{% block content %}
+<style>
+  /* ── KPI cards ── */
+  .kpi-card {
+    border-radius: 0.875rem;
+    padding: 1.1rem 1.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .kpi-card:hover { transform: translateY(-2px); }
+  .kpi-card.kpi-all   { background:rgba(59,130,246,0.08);  border:1px solid rgba(59,130,246,0.2); }
+  .kpi-card.kpi-ok    { background:rgba(34,197,94,0.06);   border:1px solid rgba(34,197,94,0.15); }
+  .kpi-card.kpi-warn  { background:rgba(234,179,8,0.06);   border:1px solid rgba(234,179,8,0.15); }
+  .kpi-card.kpi-crit  { background:rgba(239,68,68,0.06);   border:1px solid rgba(239,68,68,0.15); }
+
+  .kpi-card.active-filter.kpi-all  { border-color:rgba(59,130,246,0.5);  box-shadow:0 0 20px rgba(59,130,246,0.12); }
+  .kpi-card.active-filter.kpi-ok   { border-color:rgba(34,197,94,0.4);   box-shadow:0 0 20px rgba(34,197,94,0.10); }
+  .kpi-card.active-filter.kpi-warn { border-color:rgba(234,179,8,0.4);   box-shadow:0 0 20px rgba(234,179,8,0.10); }
+  .kpi-card.active-filter.kpi-crit { border-color:rgba(239,68,68,0.4);   box-shadow:0 0 20px rgba(239,68,68,0.10); }
+
+  .kpi-value { font-size: 2rem; font-weight: 800; line-height: 1; }
+  .kpi-label { font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.45; margin-bottom: 0.25rem; }
+  .kpi-desc  { font-size: 0.65rem; opacity: 0.3; margin-top: 0.35rem; }
+  .kpi-icon  { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); opacity: 0.07; }
+
+  /* ── Company cards ── */
+  .company-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 0.875rem;
+    transition: all 0.2s ease;
+    overflow: hidden;
+  }
+  .company-card:hover {
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.05);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+  .company-card.status-ok   { border-top: 2px solid rgba(34,197,94,0.5); }
+  .company-card.status-warn { border-top: 2px solid rgba(234,179,8,0.5); }
+  .company-card.status-crit { border-top: 2px solid rgba(239,68,68,0.5); }
+
+  /* ── Status badge glow ── */
+  .badge-ok   { background:rgba(34,197,94,0.15);  color:#4ade80; border:1px solid rgba(34,197,94,0.3);  box-shadow:0 0 8px rgba(34,197,94,0.15); }
+  .badge-warn { background:rgba(234,179,8,0.15);  color:#facc15; border:1px solid rgba(234,179,8,0.3);  box-shadow:0 0 8px rgba(234,179,8,0.15); }
+  .badge-crit { background:rgba(239,68,68,0.15);  color:#f87171; border:1px solid rgba(239,68,68,0.3);  box-shadow:0 0 8px rgba(239,68,68,0.15); }
+  .badge-exp  { background:rgba(239,68,68,0.25);  color:#fca5a5; border:1px solid rgba(239,68,68,0.5);  box-shadow:0 0 12px rgba(239,68,68,0.2); }
+
+  .status-pill {
+    display: inline-flex; align-items: center;
+    padding: 0.2rem 0.6rem; border-radius: 9999px;
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em;
+  }
+
+  /* ── Progress bar custom ── */
+  .prog-bar {
+    height: 4px; border-radius: 9999px;
+    background: rgba(255,255,255,0.07);
+    overflow: hidden; margin-top: 0.5rem;
+  }
+  .prog-fill { height: 100%; border-radius: 9999px; transition: width 0.5s ease; }
+  .prog-ok   { background: linear-gradient(90deg, #22c55e, #4ade80); }
+  .prog-warn { background: linear-gradient(90deg, #eab308, #facc15); }
+  .prog-crit { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+  /* ── Search / sort bar ── */
+  .toolbar-input {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 0.625rem;
+    padding: 0.375rem 0.875rem;
+    font-size: 0.8125rem;
+    color: rgba(166,173,187,0.8);
+    transition: all 0.15s;
+    outline: none;
+  }
+  .toolbar-input:focus {
+    border-color: rgba(59,130,246,0.4);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.08);
+  }
+  .sort-btn-custom {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 0.5rem;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: rgba(166,173,187,0.5);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .sort-btn-custom:hover { border-color:rgba(59,130,246,0.3); color:#93c5fd; }
+  .sort-btn-custom.active { border-color:rgba(59,130,246,0.4); color:#60a5fa; background:rgba(59,130,246,0.08); }
+
+  /* ── Confirm button ── */
+  .btn-confirm-ok   { background:rgba(34,197,94,0.1);  border:1px solid rgba(34,197,94,0.3);  color:#4ade80; }
+  .btn-confirm-warn { background:rgba(234,179,8,0.1);  border:1px solid rgba(234,179,8,0.3);  color:#facc15; }
+  .btn-confirm-crit { background:rgba(239,68,68,0.1);  border:1px solid rgba(239,68,68,0.3);  color:#f87171; }
+  .btn-confirm-ok:hover   { background:rgba(34,197,94,0.2); }
+  .btn-confirm-warn:hover { background:rgba(234,179,8,0.2); }
+  .btn-confirm-crit:hover { background:rgba(239,68,68,0.2); }
+  .btn-confirm { border-radius:0.5rem; padding:0.35rem 0.875rem; font-size:0.75rem; font-weight:600; letter-spacing:0.05em; cursor:pointer; transition:all 0.15s; }
+
+  /* ── Modal ── */
+  .modal-glass {
+    background: rgba(15,17,23,0.96);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 1rem;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  }
+</style>
+
+<!-- ── KPI Summary ── -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <button onclick="filterCards('all')" id="btn-all" class="kpi-card kpi-all active-filter">
+    <div class="kpi-label">Total</div>
+    <div class="kpi-value text-blue-400">{{ total }}</div>
+    <div class="kpi-desc">todas las empresas</div>
+    <svg class="kpi-icon h-14 w-14 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+  </button>
+  <button onclick="filterCards('ok')" id="btn-ok" class="kpi-card kpi-ok">
+    <div class="kpi-label">OK</div>
+    <div class="kpi-value text-emerald-400">{{ ok }}</div>
+    <div class="kpi-desc">&ge; 8 días restantes</div>
+    <svg class="kpi-icon h-14 w-14 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  </button>
+  <button onclick="filterCards('warning')" id="btn-warning" class="kpi-card kpi-warn">
+    <div class="kpi-label">Atención</div>
+    <div class="kpi-value text-yellow-400">{{ warning }}</div>
+    <div class="kpi-desc">&lt; 7 días restantes</div>
+    <svg class="kpi-icon h-14 w-14 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+  </button>
+  <button onclick="filterCards('critical')" id="btn-critical" class="kpi-card kpi-crit">
+    <div class="kpi-label">Crítico</div>
+    <div class="kpi-value text-red-400">{{ critical }}</div>
+    <div class="kpi-desc">&lt; 2 días / expirado</div>
+    <svg class="kpi-icon h-14 w-14 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  </button>
+</div>
+
+<!-- ── Toolbar ── -->
+<div class="flex flex-wrap gap-3 mb-5 items-center">
+  <div class="relative">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-base-content/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+    </svg>
+    <input type="text" id="search-input" oninput="filterCards(currentFilter)"
+           placeholder="Buscar empresa..."
+           class="toolbar-input pl-8 w-52" />
+  </div>
+  <div class="flex gap-1.5">
+    <button onclick="sortCards('days')" class="sort-btn-custom active" id="sort-days">↑ Por días</button>
+    <button onclick="sortCards('name')" class="sort-btn-custom" id="sort-name">A–Z Nombre</button>
+  </div>
+  <span id="visible-count" class="text-xs text-base-content/25 ml-auto tracking-wider"></span>
+</div>
+
+<!-- ── Company Cards ── -->
+{% if tc_list %}
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="cards-grid">
+  {% for tc in tc_list %}
+  <div class="company-card status-{{ tc.status }} company-card-item"
+       data-status="{{ tc.status }}"
+       data-name="{{ tc.company.name|lower }}"
+       data-days="{{ tc.days_remaining }}">
+    <div class="p-5">
+
+      <!-- Header -->
+      <div class="flex items-start justify-between gap-2 mb-4">
+        <div class="min-w-0">
+          <h3 class="font-bold text-sm text-base-content/90 truncate">{{ tc.company.name }}</h3>
+          <div class="flex gap-3 mt-1.5">
+            {% if tc.company.vpn_url %}
+            <a href="{{ tc.company.vpn_url }}" target="_blank" class="text-xs text-blue-400/60 hover:text-blue-400 transition-colors flex items-center gap-1">
+              <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+              VPN
+            </a>
+            {% endif %}
+            {% if tc.company.doc_url %}
+            <a href="{{ tc.company.doc_url }}" target="_blank" class="text-xs text-indigo-400/60 hover:text-indigo-400 transition-colors flex items-center gap-1">
+              <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              Docs
+            </a>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Status pill -->
+        {% if tc.days_remaining <= 0 %}
+          <span class="status-pill badge-exp">EXPIRADO</span>
+        {% elif tc.status == 'critical' %}
+          <span class="status-pill badge-crit">CRÍTICO</span>
+        {% elif tc.status == 'warning' %}
+          <span class="status-pill badge-warn">ATENCIÓN</span>
+        {% else %}
+          <span class="status-pill badge-ok">OK</span>
+        {% endif %}
+      </div>
+
+      <!-- Metrics row -->
+      <div class="flex items-center gap-4 mb-4">
+        <!-- Radial progress -->
+        <div class="radial-progress shrink-0 font-bold text-xs
+          {% if tc.status == 'critical' %}text-red-400{% elif tc.status == 'warning' %}text-yellow-400{% else %}text-emerald-400{% endif %}"
+             style="--value:{{ tc.progress_pct }}; --size:4rem; --thickness:4px;">
+          {{ tc.progress_pct }}%
+        </div>
+
+        <!-- Days + progress bar -->
+        <div class="flex-1">
+          <div class="text-2xl font-extrabold
+            {% if tc.days_remaining <= 0 %}text-red-400
+            {% elif tc.status == 'critical' %}text-red-400
+            {% elif tc.status == 'warning' %}text-yellow-400
+            {% else %}text-emerald-400{% endif %}">
+            {% if tc.days_remaining <= 0 %}
+              <span class="text-sm font-bold">Expirado</span>
+            {% else %}
+              {{ tc.days_remaining }}<span class="text-sm font-normal text-base-content/30 ml-1">días</span>
+            {% endif %}
+          </div>
+          <div class="text-xs text-base-content/30 mt-0.5">
+            Ciclo {{ tc.company.expiry_days }}d · Último: {{ tc.last_changed | fmt_date }}
+          </div>
+          <div class="prog-bar">
+            <div class="prog-fill {% if tc.status == 'critical' %}prog-crit{% elif tc.status == 'warning' %}prog-warn{% else %}prog-ok{% endif %}"
+                 style="width:{{ tc.progress_pct }}%"></div>
+          </div>
+        </div>
+      </div>
+
+      {% if tc.company.notes %}
+      <p class="text-xs text-base-content/30 italic border-t border-base-content/5 pt-3 mb-3">{{ tc.company.notes }}</p>
+      {% endif %}
+
+      <!-- Action -->
+      <div class="flex justify-end pt-1">
+        <button onclick="document.getElementById('modal-{{ tc.company.id }}').showModal()"
+                class="btn-confirm {% if tc.status == 'critical' %}btn-confirm-crit{% elif tc.status == 'warning' %}btn-confirm-warn{% else %}btn-confirm-ok{% endif %}">
+          ✓ Confirmar Cambio
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Modales -->
+{% for tc in tc_list %}
+<dialog id="modal-{{ tc.company.id }}" class="modal">
+  <div class="modal-glass modal-box p-6">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="flex items-center justify-center w-9 h-9 rounded-lg" style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2)">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+      </div>
+      <div>
+        <h3 class="font-bold text-sm text-base-content/80">Confirmar Cambio de Contraseña</h3>
+        <p class="text-xs text-base-content/30">{{ tc.company.name }}</p>
+      </div>
+    </div>
+
+    <div class="bg-base-content/5 rounded-xl p-4 mb-5 text-xs text-base-content/50 leading-relaxed">
+      ¿Confirmas que <span class="text-blue-400 font-semibold">tú</span> has rotado la contraseña de
+      <span class="text-base-content/80 font-semibold">{{ tc.company.name }}</span>?<br>
+      <span class="text-base-content/30 mt-1 block">Solo se actualizará tu contador. Tu contador se reiniciará a <span class="text-blue-400">hoy</span> y dejarás de recibir avisos.</span>
+    </div>
+
+    <div class="flex gap-2 justify-end">
+      <form method="dialog">
+        <button class="btn-confirm btn-confirm-ok opacity-40 hover:opacity-100" style="background:transparent;border-color:rgba(255,255,255,0.1);color:rgba(166,173,187,0.5)">Cancelar</button>
+      </form>
+      <form method="post" action="/company/{{ tc.company.id }}/confirm">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+        <button type="submit" class="btn-confirm btn-confirm-ok">✓ Sí, confirmar</button>
+      </form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>cerrar</button></form>
+</dialog>
+{% endfor %}
+
+<!-- Empty filter state -->
+<div id="no-results" class="hidden flex flex-col items-center py-20 gap-4">
+  <div class="text-base-content/10">
+    <svg class="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+  </div>
+  <p class="text-sm text-base-content/25">No hay empresas con ese estado o búsqueda</p>
+</div>
+
+{% else %}
+<!-- Empty state -->
+<div class="flex flex-col items-center justify-center py-24 gap-4">
+  <div style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.12);border-radius:1rem;padding:1.5rem">
+    <svg class="h-12 w-12 text-blue-400/20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+    </svg>
+  </div>
+  <p class="text-sm text-base-content/25">No tienes empresas asignadas aún.</p>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentFilter = 'all';
+
+function filterCards(status) {
+  currentFilter = status;
+  const search = document.getElementById('search-input')?.value?.toLowerCase() || '';
+  const cards = document.querySelectorAll('.company-card-item');
+  let visible = 0;
+
+  cards.forEach(card => {
+    const matchStatus = status === 'all' || card.dataset.status === status;
+    const matchSearch = !search || card.dataset.name.includes(search);
+    const show = matchStatus && matchSearch;
+    card.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+
+  // Update active KPI button
+  ['all','ok','warning','critical'].forEach(s => {
+    const idMap = {all:'btn-all', ok:'btn-ok', warning:'btn-warning', critical:'btn-critical'};
+    document.getElementById(idMap[s])?.classList.toggle('active-filter', s === status);
+  });
+
+  const noResults = document.getElementById('no-results');
+  if (noResults) noResults.classList.toggle('hidden', visible > 0);
+  const countEl = document.getElementById('visible-count');
+  if (countEl) countEl.textContent = visible + ' empresa(s)';
+}
+
+function sortCards(by) {
+  const grid = document.getElementById('cards-grid');
+  if (!grid) return;
+  const cards = [...grid.querySelectorAll('.company-card-item')];
+  cards.sort((a, b) => {
+    if (by === 'days') return parseInt(a.dataset.days) - parseInt(b.dataset.days);
+    if (by === 'name') return a.dataset.name.localeCompare(b.dataset.name);
+    return 0;
+  });
+  cards.forEach(c => grid.appendChild(c));
+
+  document.querySelectorAll('.sort-btn-custom').forEach(b => b.classList.remove('active'));
+  document.getElementById('sort-' + by)?.classList.add('active');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  filterCards('all');
+  document.getElementById('sort-days')?.classList.add('active');
+});
+</script>
+{% endblock %}

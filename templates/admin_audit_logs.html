@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Logs de Auditoría{% endblock %}
+{% block page_title %}Logs de Auditoría{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<form method="get" action="/admin/audit-logs" class="flex flex-wrap gap-3 mb-5 items-end">
+  <div class="form-control">
+    <label class="label py-1"><span class="label-text text-xs uppercase tracking-wider">Buscar</span></label>
+    <input type="text" name="q" value="{{ search }}"
+           class="input input-bordered input-sm bg-base-100 w-56"
+           placeholder="Buscar en eventos..." />
+  </div>
+  <div class="form-control">
+    <label class="label py-1"><span class="label-text text-xs uppercase tracking-wider">Nivel</span></label>
+    <select name="level" class="select select-bordered select-sm bg-base-100">
+      <option value="">Todos</option>
+      <option value="info" {% if level_filter == 'info' %}selected{% endif %}>Info</option>
+      <option value="warning" {% if level_filter == 'warning' %}selected{% endif %}>Warning</option>
+      <option value="error" {% if level_filter == 'error' %}selected{% endif %}>Error</option>
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+  <a href="/admin/audit-logs" class="btn btn-ghost btn-sm text-base-content/40">Limpiar</a>
+  <a href="/admin/export/audit.csv" class="btn btn-sm btn-outline gap-1.5"
+     style="border-color:rgba(34,197,94,0.3);color:#4ade80">
+    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+    Exportar CSV
+  </a>
+  <span class="text-xs text-base-content/30 self-end pb-1 ml-auto">{{ total }} evento(s)</span>
+</form>
+
+<div class="card bg-base-100 border border-base-200">
+  <div class="overflow-x-auto">
+    <table class="table table-sm table-zebra">
+      <thead>
+        <tr class="text-xs uppercase tracking-wider text-base-content/40">
+          <th>Fecha / Hora</th>
+          <th>Nivel</th>
+          <th>Evento</th>
+          <th>Usuario</th>
+          <th>IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr class="hover:bg-base-200/40 {% if log.level == 'error' %}bg-error/5{% elif log.level == 'warning' %}bg-warning/5{% endif %}">
+          <td class="font-mono text-xs text-base-content/50 whitespace-nowrap">
+            {{ log.timestamp | fmt_datetime }}
+          </td>
+          <td>
+            {% if log.level == 'error' %}
+              <span class="badge badge-error badge-xs">ERROR</span>
+            {% elif log.level == 'warning' %}
+              <span class="badge badge-warning badge-xs">WARN</span>
+            {% else %}
+              <span class="badge badge-ghost badge-xs">INFO</span>
+            {% endif %}
+          </td>
+          <td class="text-sm max-w-xs">{{ log.action }}</td>
+          <td class="text-xs text-base-content/50">
+            {% if log.user %}{{ log.user.username }}{% else %}—{% endif %}
+          </td>
+          <td class="font-mono text-xs text-base-content/30">{{ log.ip_address or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center py-10 text-base-content/30 text-sm">
+          Sin eventos de auditoría registrados
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="flex justify-center mt-5 gap-2">
+  {% if page > 1 %}
+  <a href="?page={{ page - 1 }}&level={{ level_filter }}&q={{ search }}" class="btn btn-sm btn-ghost">← Anterior</a>
+  {% endif %}
+  <span class="btn btn-sm btn-disabled">{{ page }} / {{ total_pages }}</span>
+  {% if page < total_pages %}
+  <a href="?page={{ page + 1 }}&level={{ level_filter }}&q={{ search }}" class="btn btn-sm btn-ghost">Siguiente →</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

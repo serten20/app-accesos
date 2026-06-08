@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %}{{ company.name }}{% endblock %}
+{% block page_title %}Ficha Empresa{% endblock %}
+
+{% block content %}
+<!-- Volver arriba -->
+<div class="mb-4">
+  <a href="/admin/companies" class="btn btn-sm btn-ghost text-base-content/50">← Volver a empresas</a>
+</div>
+
+{% if request.query_params.get('success') == '1' %}
+<div class="alert alert-success mb-4 text-sm">✓ Empresa actualizada correctamente.</div>
+{% elif request.query_params.get('error') == 'bad_date' %}
+<div class="alert alert-error mb-4 text-sm">La fecha de inicio no es válida. Usa el formato AAAA-MM-DD.</div>
+{% endif %}
+
+<!-- ── FILA 1: Info empresa (izq) + Técnicos asignados (der) ──────────────── -->
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+
+  <!-- Columna izquierda: datos y edición -->
+  <div class="card bg-base-100 border border-base-200">
+    <div class="card-body p-5 gap-4">
+      <div class="flex items-center justify-between">
+        <h2 class="font-bold text-base text-base-content">{{ company.name }}</h2>
+        <span class="badge badge-{{ company.status_color }}">
+          {% if company.status == 'critical' %}CRÍTICO{% elif company.status == 'warning' %}AVISO{% else %}OK{% endif %}
+        </span>
+      </div>
+
+      <!-- Progress -->
+      <div class="flex items-center gap-4 py-1">
+        <div class="radial-progress text-{{ company.status_color }} font-bold text-sm shrink-0"
+             style="--value:{{ company.progress_pct }}; --size:5rem; --thickness:5px;">
+          {{ company.progress_pct }}%
+        </div>
+        <div>
+          <p class="text-2xl font-bold text-{{ company.status_color }}">
+            {% if company.days_remaining <= 0 %}Expirado{% else %}{{ company.days_remaining }} días{% endif %}
+          </p>
+          <p class="text-xs text-base-content/40">Último cambio: {{ company.last_changed | fmt_date }}</p>
+          <progress class="progress progress-{{ company.status_color }} h-1.5 mt-1 w-32"
+                    value="{{ company.progress_pct }}" max="100"></progress>
+        </div>
+      </div>
+
+      <form method="post" action="/admin/company/{{ company.id }}/update" class="flex flex-col gap-3 border-t border-base-200 pt-4">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Nombre</span></label>
+          <input type="text" name="name" value="{{ company.name }}" required
+                 class="input input-bordered input-sm bg-base-200" />
+        </div>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">URL VPN / Acceso</span></label>
+          <input type="url" name="vpn_url" value="{{ company.vpn_url or '' }}"
+                 class="input input-bordered input-sm bg-base-200" placeholder="https://vpn.ejemplo.com" />
+        </div>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">URL Documentación</span></label>
+          <input type="url" name="doc_url" value="{{ company.doc_url or '' }}"
+                 class="input input-bordered input-sm bg-base-200" placeholder="https://docs.ejemplo.com" />
+        </div>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Días de expiración<span class="help-i" tabindex="0" data-help="Cada cuántos días debe rotarse la contraseña de este cliente. El vencimiento = fecha de inicio + estos días.">i</span></span></label>
+          <input type="number" name="expiry_days" value="{{ company.expiry_days }}" min="1"
+                 class="input input-bordered input-sm bg-base-200 w-32" />
+        </div>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Fecha de inicio (último cambio)</span></label>
+          <input type="date" name="last_changed"
+                 value="{{ company.last_changed.strftime('%Y-%m-%d') if company.last_changed else '' }}"
+                 class="input input-bordered input-sm bg-base-200 w-44" />
+          <span class="label-text-alt text-xs text-base-content/30 mt-1">Desde qué fecha cuenta la expiración. La empresa vencerá a los {{ company.expiry_days }} días de esta fecha.</span>
+        </div>
+        <label class="flex items-start gap-2 cursor-pointer rounded-lg p-2.5 bg-base-200/60">
+          <input type="checkbox" name="apply_to_techs" class="checkbox checkbox-xs checkbox-warning mt-0.5" />
+          <span class="text-xs text-base-content/60">Aplicar esta fecha también a los técnicos asignados que <b>aún no han confirmado</b> su rotación.</span>
+        </label>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Notas</span></label>
+          <textarea name="notes" rows="2" class="textarea textarea-bordered textarea-sm bg-base-200 text-sm">{{ company.notes or '' }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm mt-1">Guardar Cambios</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Columna derecha: técnicos asignados con scroll fijo -->
+  <div class="card bg-base-100 border border-base-200 flex flex-col" style="max-height: 600px;">
+    <div class="px-5 py-4 border-b border-base-200 flex items-center justify-between gap-3 flex-wrap shrink-0">
+      <div>
+        <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Técnicos Asignados</h2>
+        <p class="text-xs text-base-content/30 mt-0.5">Haz clic para asignar o desasignar</p>
+      </div>
+      <input type="text" placeholder="Buscar técnico..." id="tech-search"
+             oninput="filterList(this.value,'tech-list','tech-item')"
+             class="input input-bordered input-xs bg-base-200 w-40 shrink-0"/>
+    </div>
+    <!-- Lista con scroll vertical -->
+    <ul class="divide-y divide-base-200 overflow-y-auto flex-1" id="tech-list">
+      {% for tech in all_techs %}
+      <li class="flex items-center justify-between px-5 py-3 hover:bg-base-200/40 tech-item shrink-0"
+          data-name="{{ tech.username|lower }} {{ tech.email|lower }}">
+        <div>
+          <p class="text-sm font-medium">{{ tech.username }}</p>
+          <p class="text-xs text-base-content/40">{{ tech.email }}</p>
+        </div>
+        <form method="post" action="/admin/assign">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+          <input type="hidden" name="tech_id" value="{{ tech.id }}" />
+          <input type="hidden" name="company_id" value="{{ company.id }}" />
+          <input type="hidden" name="redirect_to" value="company" />
+          {% if tech.id in assigned_ids %}
+            <button class="btn btn-xs btn-success gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+              </svg>
+              Asignado
+            </button>
+          {% else %}
+            <button class="btn btn-xs btn-ghost btn-outline">+ Asignar</button>
+          {% endif %}
+        </form>
+      </li>
+      {% else %}
+      <li class="px-5 py-8 text-center text-xs text-base-content/30">No hay técnicos disponibles</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<!-- ── FILA 2: Estado de confirmación por técnico EN ESTA EMPRESA ─────────── -->
+{% if tech_performance %}
+<div class="card bg-base-100 border border-base-200">
+  <div class="card-body p-0">
+    <div class="px-5 py-4 border-b border-base-200 flex items-center justify-between flex-wrap gap-2">
+      <div>
+        <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">
+          Estado de confirmación — Técnicos asignados
+        </h2>
+        <p class="text-xs text-base-content/30 mt-0.5">
+          Cada técnico tiene su propio contador. Solo los pendientes seguirán recibiendo alertas.
+        </p>
+      </div>
+      <!-- Resumen rápido -->
+      {% set confirmed = tech_performance | selectattr("status", "equalto", "ok") | list %}
+      {% set pending   = tech_performance | rejectattr("status", "equalto", "ok") | list %}
+      <div class="flex gap-2">
+        <span class="badge badge-success badge-sm">{{ confirmed|length }} confirmado(s)</span>
+        <span class="badge badge-error badge-sm">{{ pending|length }} pendiente(s)</span>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <thead>
+          <tr class="text-xs uppercase tracking-wider text-base-content/40">
+            <th>Técnico</th>
+            <th>Su último cambio</th>
+            <th>Días restantes</th>
+            <th>Estado</th>
+            <th>Recibe alertas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in tech_performance %}
+          <tr class="hover:bg-base-200/40">
+            <td>
+              <a href="/admin/technician/{{ row.tech.id }}" class="flex items-center gap-2 group">
+                <div class="avatar placeholder shrink-0">
+                  <div class="bg-{{ row.status_color }}/10 text-{{ row.status_color }} rounded-full w-8
+                              border border-{{ row.status_color }}/30">
+                    <span class="text-xs font-bold">{{ row.tech.username[0]|upper }}</span>
+                  </div>
+                </div>
+                <div>
+                  <p class="font-medium text-sm group-hover:text-primary">{{ row.tech.username }}</p>
+                  <p class="text-xs text-base-content/40">{{ row.tech.email }}</p>
+                </div>
+              </a>
+            </td>
+            <td class="text-sm font-mono">{{ row.last_changed | fmt_date }}</td>
+            <td>
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-{{ row.status_color }}">
+                  {% if row.days_remaining <= 0 %}Expirado{% else %}{{ row.days_remaining }}d{% endif %}
+                </span>
+                <progress class="progress progress-{{ row.status_color }} h-1.5 w-16"
+                          value="{{ row.progress_pct }}" max="100"></progress>
+              </div>
+            </td>
+            <td>
+              <span class="badge badge-{{ row.status_color }} badge-sm">
+                {% if row.status == 'critical' %}CRÍTICO
+                {% elif row.status == 'warning' %}AVISO
+                {% else %}✓ CONFIRMADO{% endif %}
+              </span>
+            </td>
+            <td>
+              {% if row.status == 'ok' %}
+                <span class="text-success text-xs">No — ya confirmó ✓</span>
+              {% else %}
+                <span class="text-error text-xs font-medium">Sí — pendiente ⚠</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── FILA 3: Histórico de rotaciones de esta empresa ────────────────────── -->
+<div class="card bg-base-100 border border-base-200 mt-6">
+  <div class="card-body p-0">
+    <div class="px-5 py-4 border-b border-base-200 flex items-center justify-between flex-wrap gap-2">
+      <div>
+        <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Histórico de rotaciones</h2>
+        <p class="text-xs text-base-content/30 mt-0.5">Trazabilidad de los cambios de contraseña confirmados en esta empresa</p>
+      </div>
+      {% if h_stats.total %}
+      <div class="flex gap-2 flex-wrap">
+        <span class="badge badge-sm {% if h_stats.pct >= 90 %}badge-success{% elif h_stats.pct >= 70 %}badge-warning{% else %}badge-error{% endif %}">{{ h_stats.pct }}% a tiempo</span>
+        <span class="badge badge-ghost badge-sm">{{ h_stats.total }} rotaciones</span>
+        {% if h_stats.late %}<span class="badge badge-error badge-sm">{{ h_stats.late }} con retraso</span>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    {% if history %}
+    <!-- Franja de estadísticas -->
+    <div class="grid grid-cols-2 md:grid-cols-4 border-b border-base-200">
+      <div class="px-5 py-3 border-r border-base-200">
+        <p class="text-xs text-base-content/40">Total rotaciones</p>
+        <p class="text-xl font-bold text-base-content/80">{{ h_stats.total }}</p>
+      </div>
+      <div class="px-5 py-3 border-r border-base-200">
+        <p class="text-xs text-base-content/40">Puntualidad</p>
+        <p class="text-xl font-bold {% if h_stats.pct >= 90 %}text-success{% elif h_stats.pct >= 70 %}text-warning{% else %}text-error{% endif %}">{{ h_stats.pct }}%</p>
+      </div>
+      <div class="px-5 py-3 border-r border-base-200">
+        <p class="text-xs text-base-content/40">Técnicos que han rotado</p>
+        <p class="text-xl font-bold text-base-content/80">{{ h_stats.techs }}</p>
+      </div>
+      <div class="px-5 py-3">
+        <p class="text-xs text-base-content/40">Última rotación</p>
+        <p class="text-sm font-mono text-base-content/70 mt-1">{{ h_stats.last | fmt_datetime('%d/%m/%Y %H:%M') if h_stats.last else '—' }}</p>
+      </div>
+    </div>
+
+    <!-- Línea temporal -->
+    <ul class="p-5 m-0" style="list-style:none">
+      {% for r in history %}
+      {% set late = (r.days_late or 0) > 0 %}
+      <li style="position:relative; padding-left:1.75rem; padding-bottom:{% if not loop.last %}1.1rem{% else %}0{% endif %}">
+        <!-- línea vertical -->
+        {% if not loop.last %}<span style="position:absolute; left:6px; top:14px; bottom:0; width:1px; background:rgba(255,255,255,0.08)"></span>{% endif %}
+        <!-- punto -->
+        <span style="position:absolute; left:0; top:4px; width:13px; height:13px; border-radius:9999px;
+                     background:{{ '#f87171' if late else '#4ade80' }};
+                     box-shadow:0 0 0 3px {{ 'rgba(248,113,113,0.15)' if late else 'rgba(74,222,128,0.15)' }}"></span>
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <p class="text-sm text-base-content/80">
+              <span class="font-semibold">{{ r.technician_name or '—' }}</span>
+              rotó la contraseña
+            </p>
+            <p class="text-xs text-base-content/40 mt-0.5 font-mono">
+              Rotada el {{ r.rotated_on.strftime('%d/%m/%Y') if r.rotated_on else '—' }}
+              · confirmado {{ r.confirmed_at | fmt_datetime('%d/%m/%Y %H:%M') if r.confirmed_at else '—' }}
+            </p>
+          </div>
+          {% if late %}
+          <span class="badge badge-error badge-sm shrink-0">{{ r.days_late }}d tarde</span>
+          {% else %}
+          <span class="badge badge-success badge-sm shrink-0">A tiempo</span>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% if h_stats.total > h_stats.shown %}
+    <p class="text-xs text-base-content/30 text-center pb-4">Mostrando las {{ h_stats.shown }} más recientes de {{ h_stats.total }}.</p>
+    {% endif %}
+
+    {% else %}
+    <div class="flex flex-col items-center py-12 gap-2 text-base-content/25">
+      <svg class="h-9 w-9" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <p class="text-sm">Aún no hay rotaciones registradas para esta empresa.</p>
+      <p class="text-xs text-base-content/20">Aparecerán aquí cuando un técnico confirme un cambio de contraseña.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterList(query, listId, itemClass) {
+  const q = query.toLowerCase();
+  document.querySelectorAll('.' + itemClass).forEach(item => {
+    item.style.display = (item.dataset.name || '').includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

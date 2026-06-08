@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Informe de Salud Global{% endblock %}
+{% block page_title %}Informe de Salud Global{% endblock %}
+
+{% block content %}
+<!-- Acciones -->
+<div class="flex items-center gap-3 mb-6 no-print">
+  <a href="/admin/reports" class="btn btn-sm btn-ghost text-base-content/50">← Reportes</a>
+  <div class="ml-auto">
+    <button onclick="window.print()" class="btn btn-sm btn-outline gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+      </svg>
+      Imprimir
+    </button>
+  </div>
+</div>
+
+<!-- Cabecera del informe -->
+<div class="card bg-base-100 border border-primary/20 mb-6">
+  <div class="card-body p-6">
+    <div class="flex items-start justify-between flex-wrap gap-4">
+      <div>
+        <h1 class="text-xl font-bold text-primary tracking-wider uppercase">Informe de Salud Global</h1>
+        <p class="text-xs text-base-content/40 mt-1">Generado el {{ generated_at }} · Uso Interno</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="radial-progress text-{{ compliance_color }} font-bold"
+             style="--value:{{ compliance_pct }}; --size:5rem; --thickness:5px;">
+          {{ compliance_pct }}%
+        </div>
+        <div>
+          <p class="font-bold text-{{ compliance_color }}">{{ compliance_label }}</p>
+          <p class="text-xs text-base-content/40">Cumplimiento</p>
+        </div>
+      </div>
+    </div>
+    <!-- KPIs -->
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-4 pt-4 border-t border-base-200">
+      <div class="text-center bg-base-200 rounded-lg p-3">
+        <p class="text-xl font-bold text-base-content">{{ total_companies }}</p>
+        <p class="text-xs text-base-content/40 uppercase tracking-wider mt-0.5">Total</p>
+      </div>
+      <div class="text-center bg-base-200 rounded-lg p-3">
+        <p class="text-xl font-bold text-success">{{ ok_companies }}</p>
+        <p class="text-xs text-base-content/40 uppercase tracking-wider mt-0.5">OK</p>
+      </div>
+      <div class="text-center bg-base-200 rounded-lg p-3">
+        <p class="text-xl font-bold text-warning">{{ warning_companies }}</p>
+        <p class="text-xs text-base-content/40 uppercase tracking-wider mt-0.5">Atención</p>
+      </div>
+      <div class="text-center bg-base-200 rounded-lg p-3">
+        <p class="text-xl font-bold text-error">{{ critical_companies }}</p>
+        <p class="text-xs text-base-content/40 uppercase tracking-wider mt-0.5">Crítico</p>
+      </div>
+      <div class="text-center bg-base-200 rounded-lg p-3">
+        <p class="text-xl font-bold {% if techs_critical > 0 %}text-error{% else %}text-success{% endif %}">{{ techs_critical }}</p>
+        <p class="text-xs text-base-content/40 uppercase tracking-wider mt-0.5">Téc. KO</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cuentas que requieren acción -->
+{% if critical or warning %}
+<div class="card bg-base-100 border border-error/20 mb-6">
+  <div class="card-body p-0">
+    <div class="px-5 py-3 border-b border-base-200">
+      <h2 class="font-semibold text-sm uppercase tracking-wider text-error">🔴 Cuentas que Requieren Acción</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <thead>
+          <tr class="text-xs uppercase tracking-wider text-base-content/40">
+            <th>Empresa</th><th>Días Rest.</th><th>Estado</th><th>Técnicos</th><th>Acceso</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in (critical + warning)|sort(attribute='days_remaining') %}
+          <tr class="hover:bg-base-200/40">
+            <td class="font-medium">{{ c.name }}</td>
+            <td class="font-mono font-bold text-{{ c.status_color }}">
+              {% if c.days_remaining <= 0 %}EXP{% else %}{{ c.days_remaining }}d{% endif %}
+            </td>
+            <td><span class="badge badge-{{ c.status_color }} badge-xs">
+              {% if c.status == 'critical' %}CRÍTICO{% else %}AVISO{% endif %}
+            </span></td>
+            <td class="text-xs text-base-content/50">{{ c.technicians|map(attribute='username')|join(', ') or '—' }}</td>
+            <td class="text-xs">
+              {% if c.vpn_url %}<a href="{{ c.vpn_url }}" class="text-primary hover:underline" target="_blank">acceso</a>{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Resumen por técnico -->
+{% if tech_summary %}
+<div class="card bg-base-100 border border-base-200 mb-6">
+  <div class="card-body p-0">
+    <div class="px-5 py-3 border-b border-base-200">
+      <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Resumen por Técnico</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="table table-sm table-zebra">
+        <thead>
+          <tr class="text-xs uppercase tracking-wider text-base-content/40">
+            <th>Técnico</th><th>Total</th><th>OK</th><th>Atención</th><th>Crítico</th><th>Pendientes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in tech_summary %}
+          <tr>
+            <td class="font-medium">{{ row.tech.username }}</td>
+            <td>{{ row.total }}</td>
+            <td class="text-success">{{ row.total - row.critical - row.warning }}</td>
+            <td class="text-warning">{{ row.warning }}</td>
+            <td class="text-error">{{ row.critical }}</td>
+            <td>
+              {% if row.pending > 0 %}
+                <span class="badge badge-error badge-sm">{{ row.pending }}</span>
+              {% else %}
+                <span class="badge badge-success badge-sm">0</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Listado completo -->
+<div class="card bg-base-100 border border-base-200">
+  <div class="card-body p-0">
+    <div class="px-5 py-3 border-b border-base-200">
+      <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Estado Completo de Cuentas</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="table table-sm table-zebra">
+        <thead>
+          <tr class="text-xs uppercase tracking-wider text-base-content/40">
+            <th>Empresa</th><th>Días Rest.</th><th>Ciclo</th><th>Últ. Cambio</th><th>Estado</th><th>Técnicos</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in companies %}
+          <tr>
+            <td class="font-medium text-sm">{{ c.name }}</td>
+            <td class="font-mono font-bold text-{{ c.status_color }}">
+              {% if c.days_remaining <= 0 %}EXP{% else %}{{ c.days_remaining }}d{% endif %}
+            </td>
+            <td class="text-xs text-base-content/50">{{ c.expiry_days }}d</td>
+            <td class="text-xs text-base-content/50">{{ c.last_changed | fmt_date }}</td>
+            <td><span class="badge badge-{{ c.status_color }} badge-xs">
+              {% if c.status == 'critical' %}CRÍTICO{% elif c.status == 'warning' %}AVISO{% else %}OK{% endif %}
+            </span></td>
+            <td class="text-xs text-base-content/50">{{ c.technicians|map(attribute='username')|join(', ') or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<p class="text-center text-xs text-base-content/20 mt-6">Documento confidencial · Uso interno · {{ generated_at }}</p>
+{% endblock %}

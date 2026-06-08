@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a2e; background: white; padding: 24px; }
+  h1 { font-size: 20px; color: #1e3a5f; border-bottom: 2px solid #3b82f6; padding-bottom: 6px; margin-bottom: 12px; }
+  h2 { font-size: 13px; color: #1e3a5f; margin: 18px 0 8px; border-left: 3px solid #3b82f6; padding-left: 8px; }
+  .meta { color: #666; font-size: 10px; margin-bottom: 20px; }
+  .kpis { display: flex; gap: 12px; margin-bottom: 18px; }
+  .kpi { flex: 1; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; text-align: center; }
+  .kpi .num { font-size: 22px; font-weight: bold; }
+  .kpi .lbl { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+  .ok { color: #16a34a; } .warn { color: #d97706; } .crit { color: #dc2626; } .blue { color: #3b82f6; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  th { background: #1e3a5f; color: white; padding: 6px 8px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 5px 8px; border-bottom: 1px solid #f0f0f0; font-size: 10px; }
+  tr:nth-child(even) td { background: #f8f9fa; }
+  .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; }
+  .badge-ok { background: #dcfce7; color: #16a34a; }
+  .badge-warn { background: #fef3c7; color: #d97706; }
+  .badge-crit { background: #fee2e2; color: #dc2626; }
+  .footer { margin-top: 24px; text-align: center; font-size: 9px; color: #aaa; border-top: 1px solid #eee; padding-top: 10px; }
+  .bar-bg { background: #e5e7eb; border-radius: 3px; height: 6px; width: 100%; }
+  .bar-fill { height: 6px; border-radius: 3px; background: #3b82f6; }
+
+  /* Barra de acciones — solo visible en pantalla, no al imprimir */
+  .print-bar {
+    position: fixed; top: 0; left: 0; right: 0;
+    background: #1e3a5f; color: white;
+    padding: 10px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    z-index: 100; font-size: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .print-bar a { color: #93c5fd; text-decoration: none; font-size: 11px; }
+  .print-bar a:hover { text-decoration: underline; }
+  .btn-print {
+    background: #3b82f6; color: white; border: none;
+    padding: 7px 18px; border-radius: 6px; cursor: pointer;
+    font-size: 12px; font-weight: bold; letter-spacing: 0.3px;
+  }
+  .btn-print:hover { background: #2563eb; }
+
+  /* Empujar el contenido para que no quede debajo de la barra fija */
+  .content { margin-top: 52px; }
+
+  /* Al imprimir: ocultar la barra y quitar el margen extra */
+  @media print {
+    .print-bar { display: none !important; }
+    .content { margin-top: 0 !important; }
+    body { padding: 16px; }
+    /* Evitar cortes de página dentro de tablas */
+    tr { page-break-inside: avoid; }
+    h2 { page-break-after: avoid; }
+    /* Forzar colores de fondo en impresión */
+    th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Barra de acciones (no se imprime) -->
+<div class="print-bar">
+  <a href="/admin/reports">← Volver a Reportes</a>
+  <span>📄 Reporte de Cumplimiento · {{ generated_at }}</span>
+  <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+</div>
+
+<div class="content">
+
+<h1>REPORTE DE CUMPLIMIENTO DE ACCESOS</h1>
+<p class="meta">Generado el {{ generated_at }} &nbsp;·&nbsp; Documento confidencial · Uso interno</p>
+
+<div class="kpis">
+  <div class="kpi"><div class="num blue">{{ compliance_pct }}%</div><div class="lbl">Cumplimiento</div></div>
+  <div class="kpi"><div class="num">{{ total }}</div><div class="lbl">Total empresas</div></div>
+  <div class="kpi"><div class="num ok">{{ ok|length }}</div><div class="lbl">OK</div></div>
+  <div class="kpi"><div class="num warn">{{ warning|length }}</div><div class="lbl">Atención</div></div>
+  <div class="kpi"><div class="num crit">{{ critical|length }}</div><div class="lbl">Crítico</div></div>
+</div>
+
+{% if critical or warning %}
+<h2>Cuentas que requieren acción inmediata</h2>
+<table>
+  <thead><tr><th>Empresa</th><th>Días restantes</th><th>Estado</th><th>Técnicos asignados</th></tr></thead>
+  <tbody>
+  {% for c in (critical + warning)|sort(attribute='days_remaining') %}
+  <tr>
+    <td><b>{{ c.name }}</b></td>
+    <td class="{% if c.status == 'critical' %}crit{% else %}warn{% endif %}">
+      {% if c.days_remaining <= 0 %}EXPIRADO{% else %}{{ c.days_remaining }} días{% endif %}
+    </td>
+    <td><span class="badge {% if c.status == 'critical' %}badge-crit{% else %}badge-warn{% endif %}">
+      {{ 'CRÍTICO' if c.status == 'critical' else 'AVISO' }}
+    </span></td>
+    <td>{{ c.technicians|map(attribute='username')|join(', ') or '—' }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if tech_summary %}
+<h2>Resumen por Técnico</h2>
+<table>
+  <thead><tr><th>Técnico</th><th>Total</th><th>OK</th><th>Aviso</th><th>Crítico</th><th>Pendientes</th></tr></thead>
+  <tbody>
+  {% for row in tech_summary %}
+  <tr>
+    <td><b>{{ row.tech.username }}</b></td>
+    <td>{{ row.total }}</td>
+    <td class="ok">{{ row.total - row.critical - row.warning }}</td>
+    <td class="warn">{{ row.warning }}</td>
+    <td class="crit">{{ row.critical }}</td>
+    <td><span class="badge {% if row.pending > 0 %}badge-crit{% else %}badge-ok{% endif %}">{{ row.pending }}</span></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h2>Estado completo de todas las cuentas</h2>
+<table>
+  <thead><tr><th>Empresa</th><th>Días Rest.</th><th>Ciclo</th><th>Último cambio</th><th>Estado</th><th>Técnicos</th></tr></thead>
+  <tbody>
+  {% for c in companies %}
+  <tr>
+    <td>{{ c.name }}</td>
+    <td class="{% if c.status == 'critical' %}crit{% elif c.status == 'warning' %}warn{% else %}ok{% endif %}">
+      {% if c.days_remaining <= 0 %}EXP{% else %}{{ c.days_remaining }}d{% endif %}
+    </td>
+    <td>{{ c.expiry_days }}d</td>
+    <td>{{ c.last_changed | fmt_date }}</td>
+    <td><span class="badge {% if c.status == 'critical' %}badge-crit{% elif c.status == 'warning' %}badge-warn{% else %}badge-ok{% endif %}">
+      {{ 'CRÍTICO' if c.status == 'critical' else 'AVISO' if c.status == 'warning' else 'OK' }}
+    </span></td>
+    <td>{{ c.technicians|map(attribute='username')|join(', ') or '—' }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="footer">Reporte de Gestión de Accesos &nbsp;·&nbsp; {{ generated_at }} &nbsp;·&nbsp; Confidencial</div>
+
+</div>{# fin .content #}
+</body>
+</html>

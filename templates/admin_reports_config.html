@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+{% block title %}Reportes a Admins{% endblock %}
+{% block page_title %}Reportes — Notificaciones a Administradores{% endblock %}
+
+{% block content %}
+<style>
+  .settings-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 0.875rem;
+    overflow: hidden;
+  }
+  .settings-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .settings-card-title {
+    display: flex; align-items: center; gap: 0.625rem;
+    font-size: 0.75rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .settings-card-body { padding: 1.25rem; }
+
+  .field-label {
+    display: block; font-size: 0.65rem; font-weight: 600;
+    letter-spacing: 0.09em; text-transform: uppercase;
+    color: rgba(166,173,187,0.45); margin-bottom: 0.375rem;
+  }
+  .field-input {
+    width: 100%; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.09); border-radius: 0.5rem;
+    padding: 0.45rem 0.75rem; font-size: 0.8125rem;
+    color: rgba(166,173,187,0.85); transition: all 0.15s; outline: none;
+  }
+  .field-input:focus {
+    border-color: rgba(99,102,241,0.5);
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.08);
+  }
+  .field-select {
+    width: 100%; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.09); border-radius: 0.5rem;
+    padding: 0.45rem 0.75rem; font-size: 0.8125rem;
+    color: rgba(166,173,187,0.85); outline: none; cursor: pointer;
+  }
+  .field-select option { background: #1e1f2e; color: #d1d5db; }
+
+  /* ── Variable chips ── */
+  .var-chip {
+    display: inline-flex; align-items: center;
+    padding: 0.2rem 0.6rem; border-radius: 9999px;
+    font-size: 0.7rem; font-weight: 600; font-family: monospace;
+    border: 1px solid rgba(99,102,241,0.3);
+    background: rgba(99,102,241,0.08); color: #a5b4fc;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .var-chip:hover { background: rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.5); }
+
+  /* ── Editor / Preview grid ── */
+  .editor-preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    min-height: 420px;
+  }
+  .editor-col { display: flex; flex-direction: column; gap: 0.75rem; }
+  .preview-col { display: flex; flex-direction: column; }
+  .preview-frame {
+    flex: 1; background: white; border-radius: 0.5rem;
+    border: 1px solid #e5e7eb; padding: 1rem;
+    overflow-y: auto; color: #111827; font-size: 0.8rem;
+    min-height: 320px;
+  }
+  .preview-subject {
+    font-weight: 700; font-size: 0.875rem; color: #111827;
+    border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem; margin-bottom: 0.75rem;
+  }
+
+  /* ── Schedule grid ── */
+  .schedule-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  /* ── Info box ── */
+  .info-box {
+    background: rgba(99,102,241,0.05); border: 1px solid rgba(99,102,241,0.12);
+    border-radius: 0.625rem; padding: 0.875rem 1rem;
+    font-size: 0.75rem; color: rgba(166,173,187,0.5); line-height: 1.6;
+  }
+  .info-box b { color: rgba(165,180,252,0.8); }
+
+  /* ── Send-now button ── */
+  .btn-send-now {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.45rem 1rem; border-radius: 0.5rem;
+    border: 1px solid rgba(99,102,241,0.3);
+    background: rgba(99,102,241,0.08); color: #a5b4fc;
+    font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-send-now:hover { background: rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.5); }
+
+  /* ── Save bar ── */
+  .save-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 0.875rem; margin-top: 1.25rem;
+  }
+  .btn-save {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1.25rem; border-radius: 0.5rem;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white; font-size: 0.8rem; font-weight: 600;
+    letter-spacing: 0.05em; border: none; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-save:hover { box-shadow: 0 4px 16px rgba(99,102,241,0.35); transform: translateY(-1px); }
+  .nav-link { font-size: 0.75rem; color: rgba(166,173,187,0.35); transition: color 0.15s; text-decoration: none; }
+  .nav-link:hover { color: rgba(166,173,187,0.7); }
+</style>
+
+{% if success == '1' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm"
+     style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  Configuración de reportes guardada correctamente.
+</div>
+{% elif success == 'test' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm"
+     style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);color:#a5b4fc">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+  </svg>
+  Reporte de prueba enviado a tu email con los datos reales actuales.
+</div>
+{% endif %}
+{% if request.query_params.get('error') %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm"
+     style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  {{ request.query_params.get('error').replace('+', ' ') }}
+</div>
+{% endif %}
+
+<form method="post" action="/admin/settings/reports-config">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+
+  <!-- ── Fila superior: horario de envío ── -->
+  <div class="settings-card mb-5">
+    <div class="settings-card-header">
+      <div class="settings-card-title" style="color:rgba(165,180,252,0.8)">
+        <svg class="h-4 w-4" style="color:#a5b4fc" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        Horario de Envío
+      </div>
+    </div>
+    <div class="settings-card-body">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
+
+        <!-- Día -->
+        <div>
+          <label class="field-label">Frecuencia / Día</label>
+          <select name="report_day" class="field-select">
+            {% set rd = cfg.report_day or 'mon' %}
+            <option value="daily" {% if rd == 'daily' %}selected{% endif %}>Diario</option>
+            <option value="mon"   {% if rd == 'mon'   %}selected{% endif %}>Lunes</option>
+            <option value="tue"   {% if rd == 'tue'   %}selected{% endif %}>Martes</option>
+            <option value="wed"   {% if rd == 'wed'   %}selected{% endif %}>Miércoles</option>
+            <option value="thu"   {% if rd == 'thu'   %}selected{% endif %}>Jueves</option>
+            <option value="fri"   {% if rd == 'fri'   %}selected{% endif %}>Viernes</option>
+            <option value="sat"   {% if rd == 'sat'   %}selected{% endif %}>Sábado</option>
+            <option value="sun"   {% if rd == 'sun'   %}selected{% endif %}>Domingo</option>
+          </select>
+          <p class="text-xs text-base-content/25 mt-1.5">Día de la semana (o diario)</p>
+        </div>
+
+        <!-- Hora -->
+        <div>
+          <label class="field-label">Hora de envío (UTC)</label>
+          <select name="report_hour" class="field-select">
+            {% set rh = cfg.report_hour or '9' %}
+            {% for h in range(0, 24) %}
+            <option value="{{ h }}" {% if rh == h|string %}selected{% endif %}>{{ '%02d:00'|format(h) }}</option>
+            {% endfor %}
+          </select>
+          <p class="text-xs text-base-content/25 mt-1.5">Hora en UTC (España: UTC+1/+2)</p>
+        </div>
+
+        <!-- Resumen -->
+        <div class="info-box">
+          <p class="font-semibold mb-1.5" style="color:rgba(165,180,252,0.7)">📋 Configuración activa</p>
+          {% set day_labels = {'daily':'Todos los días','mon':'Lunes','tue':'Martes','wed':'Miércoles','thu':'Jueves','fri':'Viernes','sat':'Sábado','sun':'Domingo'} %}
+          <p>• <b>{{ day_labels.get(cfg.report_day or 'mon', cfg.report_day) }}</b> a las <b>{{ '%02d:00'|format((cfg.report_hour or '9')|int) }} UTC</b></p>
+          <p>• Solo a admins con 📧 recibir reportes activado</p>
+          <p>• El scheduler comprueba cada hora</p>
+          <p>• Cambios activos sin reiniciar</p>
+        </div>
+
+        <!-- Enviar ahora (botones formaction sobre el form principal — sin forms anidados) -->
+        <div>
+          <label class="field-label">Envío inmediato</label>
+          <p class="text-xs text-base-content/30 mb-2">Envía el reporte ahora a todos los admins con 📧 activado, sin esperar al horario.</p>
+          <button type="submit" formaction="/admin/admins/send-report-now" formnovalidate
+                  class="btn-send-now w-full justify-center">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+            Enviar reporte ahora
+          </button>
+          <button type="submit" formaction="/admin/settings/reports-config/test" formnovalidate
+                  class="btn-send-now w-full justify-center mt-2"
+                  style="background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1);color:rgba(166,173,187,0.7)">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+            Enviar prueba solo a mí
+          </button>
+          <p class="text-xs text-base-content/25 mt-1.5 text-center">Recibe el reporte real en tu correo antes de programarlo</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Editor de plantilla ── -->
+  <div class="settings-card">
+    <div class="settings-card-header">
+      <div class="settings-card-title" style="color:rgba(165,180,252,0.8)">
+        <svg class="h-4 w-4" style="color:#a5b4fc" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Plantilla Email — Administradores
+      </div>
+      <p class="text-xs text-base-content/30">Email periódico con el estado global del sistema enviado a los admins</p>
+    </div>
+    <div class="settings-card-body">
+
+      <!-- Variables -->
+      <div class="flex flex-wrap gap-2 mb-4">
+        {% for var, desc in report_vars.items() %}
+        <span class="var-chip" onclick="insertReportVar('{{ var }}')" title="{{ desc }}">{{ var }}</span>
+        {% endfor %}
+        <span class="text-xs text-base-content/20 self-center ml-1">← clic para insertar en el cuerpo</span>
+      </div>
+
+      <!-- Asunto -->
+      <div class="mb-4">
+        <label class="field-label">Asunto del reporte</label>
+        <input type="text" name="report_subject" id="report-subject"
+               value="{{ cfg.report_subject }}" oninput="updateReportPreview()"
+               class="field-input font-mono text-xs"/>
+      </div>
+
+      <!-- Editor + Preview -->
+      <div class="editor-preview-grid">
+        <!-- Editor -->
+        <div class="editor-col">
+          <label class="field-label">Cuerpo (HTML)</label>
+          <textarea name="report_body" id="report-body" oninput="updateReportPreview()"
+                    class="field-input font-mono text-xs leading-relaxed resize-none flex-1"
+                    style="min-height:340px; font-family:monospace">{{ cfg.report_body }}</textarea>
+        </div>
+
+        <!-- Preview -->
+        <div class="preview-col">
+          <label class="field-label">Vista previa — datos reales actuales{% if not has_data %} (sin empresas aún){% endif %}</label>
+          <div class="preview-frame">
+            <div id="report-preview-subject" class="preview-subject"></div>
+            <div id="report-preview-body" class="text-xs leading-relaxed"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Save bar ── -->
+  <div class="save-bar">
+    <div class="flex items-center gap-4">
+      <button type="submit" class="btn-save">💾 Guardar cambios</button>
+    </div>
+    <div class="flex items-center gap-4">
+      <a href="/admin/settings/alerts" class="nav-link">← Alertas a Técnicos</a>
+      <a href="/admin/settings/general" class="nav-link">General →</a>
+    </div>
+  </div>
+
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Datos REALES de la BD (los mismos que se enviarían en el reporte)
+const reportSampleVars = {{ preview_vars | tojson }};
+
+function applyReportVars(text) {
+  let r = text;
+  for (const [k, v] of Object.entries(reportSampleVars)) r = r.split(k).join(v);
+  return r;
+}
+
+function updateReportPreview() {
+  const subj = document.getElementById('report-subject')?.value || '';
+  const body = document.getElementById('report-body')?.value || '';
+  document.getElementById('report-preview-subject').textContent = applyReportVars(subj);
+  document.getElementById('report-preview-body').innerHTML = applyReportVars(body);
+}
+
+function insertReportVar(v) {
+  const ta = document.getElementById('report-body');
+  if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.slice(0, s) + v + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + v.length;
+  ta.focus();
+  updateReportPreview();
+}
+
+document.addEventListener('DOMContentLoaded', updateReportPreview);
+</script>
+{% endblock %}

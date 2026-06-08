@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Configuración SMTP{% endblock %}
+{% block page_title %}SMTP — Servidor de Correo{% endblock %}
+
+{% block content %}
+<div class="max-w-xl">
+
+  {% if success == '1' %}
+  <div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+    <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    Configuración SMTP guardada correctamente.
+  </div>
+  {% elif success == 'test_ok' %}
+  <div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+    <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    Email de prueba enviado correctamente. Revisa el detalle en el panel de diagnóstico.
+  </div>
+  {% elif success == 'check_ok' %}
+  <div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+    <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    Conexión correcta. Mira las capacidades del servidor en el panel de diagnóstico.
+  </div>
+  {% endif %}
+  {% if error %}
+  <div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171">
+    <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    {% if error == 'check_fail' %}La conexión SMTP falló. Mira el motivo exacto en el panel de diagnóstico.
+    {% elif error == 'test_fail' %}No se pudo enviar el email de prueba. Mira el motivo en el panel de diagnóstico.
+    {% elif error == 'no_my_email' %}Tu usuario no tiene email configurado. Añádelo en tu perfil para recibir la prueba.
+    {% else %}Error SMTP: {{ error }}{% endif %}
+  </div>
+  {% endif %}
+
+  <!-- ── Formulario SMTP ── -->
+  <form method="post" action="/admin/settings/smtp" id="smtp-form">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+
+    <div class="card bg-base-100 border border-base-200">
+      <div class="card-body p-5 gap-5">
+
+        <div class="flex items-center gap-3 mb-1">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+          <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Servidor SMTP</h2>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="form-control col-span-2">
+            <label class="label py-1"><span class="label-text text-xs">Host SMTP</span></label>
+            <input type="text" name="smtp_host" value="{{ cfg.smtp_host }}"
+                   class="input input-bordered input-sm bg-base-200" placeholder="smtp.gmail.com"/>
+          </div>
+          <div class="form-control">
+            <label class="label py-1"><span class="label-text text-xs">Puerto</span></label>
+            <input type="number" name="smtp_port" value="{{ cfg.smtp_port or '587' }}"
+                   class="input input-bordered input-sm bg-base-200"/>
+          </div>
+          <div class="form-control">
+            <label class="label py-1"><span class="label-text text-xs">Dirección From</span></label>
+            <input type="email" name="smtp_from" value="{{ cfg.smtp_from }}"
+                   class="input input-bordered input-sm bg-base-200" placeholder="noreply@empresa.com"/>
+          </div>
+          <div class="form-control col-span-2">
+            <label class="label py-1"><span class="label-text text-xs">Usuario SMTP</span></label>
+            <input type="text" name="smtp_user" value="{{ cfg.smtp_user }}"
+                   class="input input-bordered input-sm bg-base-200" placeholder="correo@gmail.com"/>
+          </div>
+          <div class="form-control col-span-2">
+            <label class="label py-1">
+              <span class="label-text text-xs">Contraseña / App Password</span>
+              <span class="label-text-alt text-xs text-base-content/30">Vacío = no cambiar · vacío también = relay sin auth</span>
+            </label>
+            <input type="password" name="smtp_pass"
+                   class="input input-bordered input-sm bg-base-200"
+                   placeholder="{{ '••••••••' if cfg.smtp_pass else 'Sin configurar' }}"/>
+          </div>
+          <div class="form-control col-span-2">
+            <label class="label py-1"><span class="label-text text-xs">Seguridad / Autenticación</span></label>
+            <select name="smtp_security" class="select select-bordered select-sm bg-base-200">
+              {% set sec = cfg.smtp_security or 'auto' %}
+              <option value="auto"     {% if sec == 'auto' %}selected{% endif %}>Auto — detecta TLS y autentica solo si hay credenciales (recomendado)</option>
+              <option value="starttls" {% if sec == 'starttls' %}selected{% endif %}>STARTTLS — fuerza TLS (típico puerto 587)</option>
+              <option value="ssl"      {% if sec == 'ssl' %}selected{% endif %}>SSL/TLS implícito — SMTPS (típico puerto 465)</option>
+              <option value="none"     {% if sec == 'none' %}selected{% endif %}>Ninguno — sin TLS (relay interno, p.ej. puerto 25)</option>
+            </select>
+            <span class="label-text-alt text-xs text-base-content/30 mt-1">Para relays sin autenticación (IronPort/Exchange por IP, puerto 25), deja la contraseña vacía y usa Auto o Ninguno.</span>
+          </div>
+        </div>
+
+        <div class="bg-base-200 rounded-lg px-4 py-3 text-xs text-base-content/40">
+          💡 <b>Gmail:</b> activa <b>Contraseñas de aplicación</b> y usa STARTTLS (587). <b>Relay corporativo</b> (sin usuario/contraseña): deja la contraseña vacía y seguridad Auto/Ninguno.
+        </div>
+
+        <div class="flex gap-3 pt-1">
+          <button type="submit" class="btn btn-primary btn-sm">💾 Guardar</button>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <!-- ── Test de conexión ── -->
+  <div class="card bg-base-100 border border-base-200 mt-4">
+    <div class="card-body p-5 gap-3">
+      <div class="flex items-center gap-3">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-base-content/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Test y Diagnóstico</h2>
+      </div>
+      <p class="text-xs text-base-content/40">
+        Ambos botones <b>usan lo que tienes ahora en el formulario</b> (lo guardan y luego prueban; no hace falta guardar antes).
+        <b>Probar conexión</b> comprueba el servidor (TLS, autenticación) <b>sin enviar nada</b>.
+        <b>Enviar prueba a mí</b> manda un correo real <b>a tu propio email</b> ({{ user.email or 'sin email — configúralo en tu perfil' }}); el remitente sigue siendo el <i>From</i>.
+      </p>
+      <div class="flex gap-3 flex-wrap">
+        <button type="submit" form="smtp-form" formaction="/admin/settings/smtp/check" formnovalidate class="btn btn-primary btn-sm gap-2">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Probar conexión
+        </button>
+        <button type="submit" form="smtp-form" formaction="/admin/settings/smtp/test" formnovalidate class="btn btn-outline btn-sm gap-2">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          Enviar prueba a mí
+        </button>
+      </div>
+
+      {% if test.status %}
+      <div class="mt-2 rounded-lg p-3.5"
+           style="background:{{ 'rgba(34,197,94,0.06)' if test.status == 'ok' else 'rgba(239,68,68,0.06)' }};border:1px solid {{ 'rgba(34,197,94,0.2)' if test.status == 'ok' else 'rgba(239,68,68,0.2)' }}">
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <span class="text-xs font-bold uppercase tracking-wider" style="color:{{ '#4ade80' if test.status == 'ok' else '#f87171' }}">
+            {{ '✓ Último resultado: correcto' if test.status == 'ok' else '✗ Último resultado: error' }}
+          </span>
+          <span class="text-xs text-base-content/30">{{ test.at or '' }}</span>
+        </div>
+        <p class="text-xs leading-relaxed" style="color:{{ 'rgba(166,173,187,0.7)' if test.status == 'ok' else 'rgba(248,113,113,0.85)' }};word-break:break-word">
+          {{ test.detail or '—' }}
+        </p>
+      </div>
+      {% endif %}
+
+      <p class="text-xs text-base-content/30 mt-1">
+        Todos los envíos quedan registrados con su estado y motivo en
+        <a href="/admin/emails" class="text-blue-400/60 hover:text-blue-400 underline">Registro de Emails</a>.
+      </p>
+    </div>
+  </div>
+
+  <!-- ── Navegación rápida ── -->
+  <div class="flex gap-3 mt-6 flex-wrap">
+    <a href="/admin/settings/alerts" class="btn btn-sm btn-outline gap-2">
+      🔔 Configurar Alertas a Técnicos →
+    </a>
+    <a href="/admin/settings/reports-config" class="btn btn-sm btn-outline gap-2">
+      📊 Configurar Reportes a Admins →
+    </a>
+  </div>
+
+</div>
+{% endblock %}

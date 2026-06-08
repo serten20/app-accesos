@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+{% block title %}Administradores{% endblock %}
+{% block page_title %}Gestión de Administradores{% endblock %}
+
+{% block content %}
+<style>
+  .glass-panel { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:0.875rem; overflow:hidden; }
+  .panel-header { display:flex; align-items:center; justify-content:space-between; padding:0.875rem 1.25rem; border-bottom:1px solid rgba(255,255,255,0.05); }
+  .panel-title  { font-size:0.65rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:rgba(166,173,187,0.4); }
+
+  .field-label  { font-size:0.65rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:rgba(166,173,187,0.4); margin-bottom:0.3rem; display:block; }
+  .field-input  { width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:0.5rem; padding:0.45rem 0.75rem; font-size:0.8125rem; color:rgba(166,173,187,0.85); transition:all 0.15s; outline:none; }
+  .field-input:focus { border-color:rgba(59,130,246,0.4); box-shadow:0 0 0 3px rgba(59,130,246,0.08); }
+  .field-input:disabled { opacity:0.35; cursor:not-allowed; }
+
+  .btn-create { width:100%; background:linear-gradient(135deg,rgba(59,130,246,0.8),rgba(99,102,241,0.8)); border:none; border-radius:0.5rem; padding:0.55rem; font-size:0.8rem; font-weight:600; letter-spacing:0.07em; color:white; cursor:pointer; transition:all 0.2s; margin-top:0.25rem; }
+  .btn-create:hover { background:linear-gradient(135deg,#3b82f6,#6366f1); box-shadow:0 4px 16px rgba(59,130,246,0.3); transform:translateY(-1px); }
+
+  /* ── Email required indicator ── */
+  .email-required-note { font-size:0.65rem; color:rgba(59,130,246,0.6); margin-top:0.3rem; display:none; }
+  .email-required-note.visible { display:block; }
+
+  /* ── Admin row ── */
+  .admin-row { display:flex; align-items:center; gap:0.875rem; padding:0.875rem 1.25rem; border-bottom:1px solid rgba(255,255,255,0.04); transition:background 0.15s; }
+  .admin-row:last-child { border-bottom:none; }
+  .admin-row:hover { background:rgba(255,255,255,0.02); }
+
+  .admin-avatar { width:2.25rem; height:2.25rem; border-radius:9999px; background:linear-gradient(135deg,#3b82f6,#6366f1); display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700; color:white; flex-shrink:0; }
+  .admin-avatar.inactive { background:rgba(255,255,255,0.07); }
+
+  .badge-you      { display:inline-flex; padding:0.1rem 0.45rem; border-radius:9999px; font-size:0.55rem; font-weight:700; letter-spacing:0.07em; background:rgba(59,130,246,0.15); color:#93c5fd; border:1px solid rgba(59,130,246,0.25); }
+  .badge-active   { display:inline-flex; padding:0.1rem 0.45rem; border-radius:9999px; font-size:0.55rem; font-weight:700; letter-spacing:0.07em; background:rgba(34,197,94,0.12); color:#4ade80; border:1px solid rgba(34,197,94,0.2); }
+  .badge-inactive { display:inline-flex; padding:0.1rem 0.45rem; border-radius:9999px; font-size:0.55rem; font-weight:700; letter-spacing:0.07em; background:rgba(239,68,68,0.1); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
+  .badge-pending  { display:inline-flex; padding:0.1rem 0.45rem; border-radius:9999px; font-size:0.55rem; font-weight:700; letter-spacing:0.07em; background:rgba(234,179,8,0.12); color:#facc15; border:1px solid rgba(234,179,8,0.2); }
+  .badge-report   { display:inline-flex; align-items:center; gap:0.25rem; padding:0.1rem 0.45rem; border-radius:9999px; font-size:0.55rem; font-weight:700; letter-spacing:0.07em; background:rgba(99,102,241,0.12); color:#a5b4fc; border:1px solid rgba(99,102,241,0.25); }
+
+  .action-btn { padding:0.25rem 0.6rem; border-radius:0.4rem; font-size:0.7rem; font-weight:600; cursor:pointer; transition:all 0.15s; border:1px solid transparent; background:transparent; }
+  .action-toggle-off  { color:rgba(234,179,8,0.7);   border-color:rgba(234,179,8,0.2); }
+  .action-toggle-off:hover  { background:rgba(234,179,8,0.08); color:#facc15; }
+  .action-toggle-on   { color:rgba(34,197,94,0.7);   border-color:rgba(34,197,94,0.2); }
+  .action-toggle-on:hover   { background:rgba(34,197,94,0.08); color:#4ade80; }
+  .action-report-on   { color:rgba(99,102,241,0.7);  border-color:rgba(99,102,241,0.2); }
+  .action-report-on:hover   { background:rgba(99,102,241,0.08); color:#a5b4fc; }
+  .action-report-off  { color:rgba(166,173,187,0.3); border-color:rgba(255,255,255,0.07); }
+  .action-report-off:hover  { background:rgba(255,255,255,0.04); color:rgba(166,173,187,0.6); }
+  .action-delete { color:rgba(239,68,68,0.5); border-color:rgba(239,68,68,0.15); }
+  .action-delete:hover { background:rgba(239,68,68,0.08); color:#f87171; }
+
+  /* ── Send report button ── */
+  .btn-send-report { display:inline-flex; align-items:center; gap:0.5rem; padding:0.45rem 1rem; border-radius:0.625rem; font-size:0.75rem; font-weight:600; cursor:pointer; transition:all 0.15s; background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.25); color:#a5b4fc; }
+  .btn-send-report:hover { background:rgba(99,102,241,0.18); box-shadow:0 0 12px rgba(99,102,241,0.15); }
+
+  /* ── Warning banner ── */
+  .warn-banner { background:rgba(234,179,8,0.06); border:1px solid rgba(234,179,8,0.2); border-radius:0.75rem; padding:0.875rem 1rem; display:flex; gap:0.75rem; align-items:flex-start; margin-bottom:1.5rem; }
+
+  /* ── Checkbox custom ── */
+  .check-row { display:flex; align-items:flex-start; gap:0.625rem; padding:0.625rem 0.75rem; border-radius:0.5rem; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02); cursor:pointer; transition:all 0.15s; }
+  .check-row:hover { border-color:rgba(99,102,241,0.3); background:rgba(99,102,241,0.05); }
+  .check-row input[type=checkbox] { margin-top:1px; flex-shrink:0; }
+</style>
+
+<!-- Alerts -->
+{% if success == 'created' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  Administrador creado correctamente.
+</div>
+{% elif success == 'report_sent' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);color:#a5b4fc">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+  Reporte enviado a {{ request.query_params.get('count', '0') }} administrador(es) correctamente.
+</div>
+{% elif success == 'dual_toggled' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  Rol de técnico actualizado. Si lo activaste, ya puedes asignarle empresas desde cada ficha de empresa.
+</div>
+{% elif success == 'promoted' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  Técnico promovido a administrador (mantiene el rol de técnico). Aparece aquí con el badge 🔧 TÉCNICO.
+</div>
+{% endif %}
+
+{% if error == 'duplicate' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  El nombre de usuario o email ya existe.
+</div>
+{% elif error == 'email_required' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  El email es obligatorio si el administrador debe recibir reportes.
+</div>
+{% elif error == 'self' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  No puedes modificar ni eliminar tu propia cuenta desde aquí.
+</div>
+{% elif error == 'last' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  No puedes eliminar el último administrador activo del sistema.
+</div>
+{% elif error == 'no_email' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);color:#facc15">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  Este administrador no tiene email configurado. Añade un email primero para activar los reportes.
+</div>
+{% endif %}
+
+<!-- Security notice -->
+<div class="warn-banner">
+  <svg class="h-4 w-4 text-yellow-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+  </svg>
+  <div>
+    <p class="text-xs font-semibold text-yellow-400/80">Zona de alta seguridad</p>
+    <p class="text-xs text-base-content/30 mt-0.5 leading-relaxed">
+      Los administradores tienen acceso total al sistema. No puedes eliminarte a ti mismo ni dejar el sistema sin administradores activos.
+      Toda acción aquí queda registrada en el log de auditoría.
+    </p>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+
+  {% if user.role == 'admin' %}
+  <!-- Create form -->
+  <div class="glass-panel h-fit">
+    <div class="panel-header">
+      <span class="panel-title">Nuevo usuario de consola</span>
+      <div class="flex items-center justify-center w-6 h-6 rounded-md" style="background:rgba(59,130,246,0.1)">
+        <svg class="h-3.5 w-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      </div>
+    </div>
+    <div class="p-5">
+      <form method="post" action="/admin/admins/create" class="flex flex-col gap-4" id="create-form">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+
+        <div>
+          <label class="field-label">Tipo de usuario</label>
+          <select name="user_type" id="user-type-select" class="field-input" style="cursor:pointer">
+            <option value="admin">Administrador (acceso total)</option>
+            <option value="auditor">Auditor (solo lectura)</option>
+          </select>
+          <p class="text-xs text-base-content/30 mt-1" id="auditor-note" style="display:none">El auditor puede consultar todo pero no modificar ni descargar.</p>
+        </div>
+
+        <div>
+          <label class="field-label">Username *</label>
+          <input type="text" name="username" required class="field-input" placeholder="usuario_nombre" />
+        </div>
+
+        <div>
+          <label class="field-label" id="email-label">
+            Email
+            <span id="email-required-star" class="text-red-400 ml-0.5 hidden">*</span>
+          </label>
+          <input type="email" name="email" id="email-input" class="field-input" placeholder="admin@empresa.com" />
+          <p class="email-required-note" id="email-note">Requerido para recibir reportes</p>
+        </div>
+
+        <div>
+          <label class="field-label">Contraseña inicial *</label>
+          <input type="password" name="password" required class="field-input" placeholder="••••••••" minlength="8" />
+          <p class="text-xs text-base-content/20 mt-1">Mínimo 8 caracteres</p>
+        </div>
+
+        <!-- Checkboxes -->
+        <div class="flex flex-col gap-2">
+          <label class="check-row" id="reports-check-row">
+            <input type="checkbox" name="receive_reports" id="receive-reports-check"
+                   class="checkbox checkbox-sm" style="--chkbg:rgb(99,102,241);--chkfg:white" />
+            <div>
+              <p class="text-xs font-medium text-base-content/70">Recibir reportes por email</p>
+              <p class="text-xs text-base-content/30 mt-0.5">Recibirá el reporte periódico de estado</p>
+            </div>
+          </label>
+
+          <label class="check-row">
+            <input type="checkbox" name="must_change_password" id="mcp-check"
+                   class="checkbox checkbox-sm checkbox-warning" checked />
+            <div>
+              <p class="text-xs font-medium text-base-content/70">Forzar cambio en próximo login</p>
+              <p class="text-xs text-base-content/30 mt-0.5">Recomendado para contraseñas temporales</p>
+            </div>
+          </label>
+
+          <label class="check-row" style="border-color:rgba(34,197,94,0.2)">
+            <input type="checkbox" name="also_technician" id="also-tech-check"
+                   class="checkbox checkbox-sm" style="--chkbg:rgb(34,197,94);--chkfg:white" />
+            <div>
+              <p class="text-xs font-medium text-base-content/70">También es técnico</p>
+              <p class="text-xs text-base-content/30 mt-0.5">Podrá tener empresas asignadas y confirmar rotaciones. Verá "Mis Empresas" en su menú.</p>
+            </div>
+          </label>
+        </div>
+
+        <button type="submit" class="btn-create">+ Crear usuario</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Admins list -->
+  <div class="{% if user.role == 'admin' %}xl:col-span-2{% else %}xl:col-span-3{% endif %} flex flex-col gap-4">
+
+    {% if user.role == 'admin' %}
+    <!-- Send report now -->
+    <div class="glass-panel">
+      <div class="p-4 flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <p class="text-sm font-semibold text-base-content/70">Reporte manual</p>
+          <p class="text-xs text-base-content/30 mt-0.5">
+            Envía ahora el reporte a todos los admins con 📧 activado.
+            El horario automático se configura en
+            <a href="/admin/settings/reports-config" class="text-blue-400/60 hover:text-blue-400 underline">Configuración → Reportes</a>.
+          </p>
+        </div>
+        <form method="post" action="/admin/admins/send-report-now">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+          <button type="submit" class="btn-send-report">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            Enviar reporte ahora
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Admin list -->
+    <div class="glass-panel flex-1">
+      <div class="panel-header">
+        <span class="panel-title">{{ admins|length }} usuario(s) de consola</span>
+      </div>
+
+      <div>
+        {% for a in admins %}
+        <div class="admin-row">
+          <!-- Avatar -->
+          <div class="admin-avatar {% if not a.is_active %}inactive{% endif %}">
+            {{ a.username[0] | upper }}
+          </div>
+
+          <!-- Info -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-sm font-semibold text-base-content/80">{{ a.username }}</span>
+              {% if a.id == user.id %}<span class="badge-you">TÚ</span>{% endif %}
+              {% if a.is_active %}<span class="badge-active">ACTIVO</span>{% else %}<span class="badge-inactive">INACTIVO</span>{% endif %}
+              {% if a.must_change_password %}<span class="badge-pending">CAMBIO PENDIENTE</span>{% endif %}
+              {% if a.receive_reports and a.email %}
+                <span class="badge-report">📧 RECIBE REPORTES</span>
+              {% endif %}
+              {% if a.also_technician %}
+                <span class="badge-active" style="background:rgba(34,197,94,0.12);color:#4ade80;border-color:rgba(34,197,94,0.25)">🔧 TÉCNICO</span>
+              {% endif %}
+              {% if a.role == 'auditor' %}
+                <span class="badge-active" style="background:rgba(99,102,241,0.12);color:#a5b4fc;border-color:rgba(99,102,241,0.25)">👁 AUDITOR</span>
+              {% endif %}
+            </div>
+            <p class="text-xs text-base-content/30 mt-0.5">
+              {% if a.email %}{{ a.email }}{% else %}<span class="italic opacity-50">Sin email</span>{% endif %}
+            </p>
+            <p class="text-xs text-base-content/20 mt-0.5">Creado: {{ a.created_at.strftime('%d/%m/%Y') if a.created_at else '—' }}</p>
+          </div>
+
+          <!-- Actions (solo administradores; el auditor ve la lista sin acciones) -->
+          {% if user.role == 'admin' %}
+          <div class="flex items-center gap-1.5 shrink-0">
+
+            {% if a.role == 'admin' %}
+            <!-- Toggle doble rol (técnico) -->
+            <form method="post" action="/admin/admins/{{ a.id }}/toggle-technician">
+              <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+              <button class="action-btn {% if a.also_technician %}action-toggle-on{% else %}action-report-off{% endif %}"
+                      title="{% if a.also_technician %}Quitar rol de técnico{% else %}Convertir también en técnico{% endif %}">
+                🔧 {{ 'Técnico ON' if a.also_technician else 'Técnico OFF' }}
+              </button>
+            </form>
+
+            <!-- Toggle reportes -->
+            {% if a.email %}
+              <form method="post" action="/admin/admins/{{ a.id }}/toggle-reports">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+                <button class="action-btn {% if a.receive_reports %}action-report-on{% else %}action-report-off{% endif %}">
+                  📧 {{ 'Reportes ON' if a.receive_reports else 'Reportes OFF' }}
+                </button>
+              </form>
+            {% else %}
+              <span class="action-btn action-report-off"
+                    title="Sin email configurado — ve a tu perfil o edita este admin para añadir uno"
+                    style="cursor:not-allowed;opacity:0.4">
+                📧 Sin email
+              </span>
+            {% endif %}
+            {% endif %}
+
+            {% if a.id != user.id %}
+              <!-- Toggle activo -->
+              <form method="post" action="/admin/admins/{{ a.id }}/toggle">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+                <button class="action-btn {% if a.is_active %}action-toggle-off{% else %}action-toggle-on{% endif %}">
+                  {{ 'Deshabilitar' if a.is_active else 'Habilitar' }}
+                </button>
+              </form>
+
+              <!-- Degradar a técnico (solo administradores, no auditores) -->
+              {% if a.role == 'admin' %}
+              <form method="post" action="/admin/admins/{{ a.id }}/demote"
+                    onsubmit="return confirm('¿Degradar a {{ a.username }} a TÉCNICO? Perderá el acceso de administración y pasará a la lista de Técnicos.')">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+                <button class="action-btn" style="color:rgba(234,179,8,0.75);border-color:rgba(234,179,8,0.2)"
+                        title="Convertir en técnico puro (pierde acceso de admin)">↓ A técnico</button>
+              </form>
+              {% endif %}
+
+              <!-- Eliminar -->
+              <form method="post" action="/admin/admins/{{ a.id }}/delete"
+                    onsubmit="return confirm('¿Eliminar usuario {{ a.username }}? Esta acción no se puede deshacer.')">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+                <button class="action-btn action-delete">Eliminar</button>
+              </form>
+            {% else %}
+              <span class="text-xs text-base-content/15 italic pr-2">cuenta actual</span>
+            {% endif %}
+
+          </div>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="flex flex-col items-center py-12 gap-3 text-base-content/20">
+          <svg class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+          <p class="text-sm">No hay administradores registrados</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const receiveReportsCheck = document.getElementById('receive-reports-check');
+const emailInput          = document.getElementById('email-input');
+const emailNote           = document.getElementById('email-note');
+const emailStar           = document.getElementById('email-required-star');
+const userTypeSelect      = document.getElementById('user-type-select');
+const alsoTechCheck       = document.getElementById('also-tech-check');
+const auditorNote         = document.getElementById('auditor-note');
+
+function updateEmailRequirement() {
+  if (!receiveReportsCheck || !emailInput) return;   // auditor: formulario oculto
+  const checked = receiveReportsCheck.checked;
+  emailInput.required = checked;
+  emailNote?.classList.toggle('visible', checked);
+  emailStar?.classList.toggle('hidden', !checked);
+  emailInput.style.borderColor = checked ? 'rgba(99,102,241,0.4)' : '';
+}
+
+function updateUserType() {
+  if (!userTypeSelect) return;
+  const isAuditor = userTypeSelect.value === 'auditor';
+  auditorNote && (auditorNote.style.display = isAuditor ? 'block' : 'none');
+  // Un auditor no recibe reportes ni es técnico: desactivar y limpiar esas opciones
+  [receiveReportsCheck, alsoTechCheck].forEach(c => {
+    if (!c) return;
+    if (isAuditor) { c.checked = false; }
+    c.disabled = isAuditor;
+    c.closest('.check-row')?.style.setProperty('opacity', isAuditor ? '0.4' : '1');
+  });
+  updateEmailRequirement();
+}
+
+receiveReportsCheck?.addEventListener('change', updateEmailRequirement);
+userTypeSelect?.addEventListener('change', updateUserType);
+document.addEventListener('DOMContentLoaded', () => { updateUserType(); updateEmailRequirement(); });
+</script>
+{% endblock %}

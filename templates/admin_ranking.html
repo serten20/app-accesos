@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Ranking de Puntualidad{% endblock %}
+{% block page_title %}Ranking de Puntualidad — Técnicos{% endblock %}
+
+{% block content %}
+<style>
+  .glass-panel { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:0.875rem; overflow:hidden; }
+  .kpi { background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.06); border-radius:0.75rem; padding:1rem 1.25rem; }
+  .kpi-label { font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:rgba(166,173,187,0.4); }
+  .kpi-value { font-size:1.6rem; font-weight:800; margin-top:0.25rem; }
+  .period-tab { font-size:0.72rem; font-weight:600; padding:0.35rem 0.85rem; border-radius:0.5rem; color:rgba(166,173,187,0.5); border:1px solid rgba(255,255,255,0.07); text-decoration:none; transition:all 0.15s; }
+  .period-tab:hover { color:rgba(166,173,187,0.85); background:rgba(255,255,255,0.04); }
+  .period-tab.active { background:rgba(59,130,246,0.12); border-color:rgba(59,130,246,0.35); color:#93c5fd; }
+  .data-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+  .data-table th { text-align:left; padding:0.6rem 1rem; font-size:0.6rem; letter-spacing:0.08em; text-transform:uppercase; color:rgba(166,173,187,0.35); border-bottom:1px solid rgba(255,255,255,0.06); }
+  .data-table td { padding:0.6rem 1rem; border-bottom:1px solid rgba(255,255,255,0.04); color:rgba(166,173,187,0.78); }
+  .data-table tr:last-child td { border-bottom:none; }
+  .data-table tr:hover td { background:rgba(255,255,255,0.02); }
+  .pct-bar { height:6px; border-radius:9999px; background:rgba(255,255,255,0.07); overflow:hidden; min-width:90px; }
+  .pct-fill { height:100%; border-radius:9999px; }
+  .mono { font-family:monospace; }
+  .podium { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:1.5rem; }
+  .podium-card { border-radius:0.875rem; padding:1.1rem 1.25rem; border:1px solid rgba(255,255,255,0.08); position:relative; overflow:hidden; }
+  .podium-1 { background:linear-gradient(135deg,rgba(250,204,21,0.12),rgba(250,204,21,0.03)); border-color:rgba(250,204,21,0.3); }
+  .podium-2 { background:linear-gradient(135deg,rgba(203,213,225,0.1),rgba(203,213,225,0.02)); border-color:rgba(203,213,225,0.25); }
+  .podium-3 { background:linear-gradient(135deg,rgba(217,119,6,0.1),rgba(217,119,6,0.02)); border-color:rgba(217,119,6,0.25); }
+  .medal { font-size:1.5rem; }
+</style>
+
+{% macro pct_color(p) %}{% if p >= 90 %}#4ade80{% elif p >= 70 %}#facc15{% else %}#f87171{% endif %}{% endmacro %}
+
+<!-- Periodo + volver -->
+<div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+  <div class="flex items-center gap-1.5 flex-wrap">
+    {% for key, label in period_labels.items() %}
+    <a href="/admin/reports/ranking?period={{ key }}" class="period-tab {% if period == key %}active{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <a href="/admin/reports" class="text-xs text-base-content/40 hover:text-base-content/70">← Volver a Reportes</a>
+</div>
+
+<!-- KPIs globales -->
+<div class="grid grid-cols-3 gap-4 mb-5">
+  <div class="kpi"><div class="kpi-label">Puntualidad global</div><div class="kpi-value" style="color:{{ pct_color(g_pct) }}">{{ g_pct }}%</div></div>
+  <div class="kpi"><div class="kpi-label">Rotaciones en el periodo</div><div class="kpi-value text-base-content/80">{{ g_total }}</div></div>
+  <div class="kpi"><div class="kpi-label">Con retraso</div><div class="kpi-value" style="color:#f87171">{{ g_late }}</div></div>
+</div>
+
+{% if ranking %}
+<!-- Podio Top 3 -->
+{% if ranking|length >= 2 %}
+<div class="podium">
+  {% for r in ranking[:3] %}
+  <div class="podium-card podium-{{ loop.index }}">
+    <div class="flex items-center justify-between">
+      <span class="medal">{% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% else %}🥉{% endif %}</span>
+      <span class="text-2xl font-extrabold" style="color:{{ pct_color(r.pct) }}">{{ r.pct }}%</span>
+    </div>
+    <p class="text-sm font-bold text-base-content/85 mt-2 truncate">{{ r.name }}</p>
+    <p class="text-xs text-base-content/40 mt-0.5">{{ r.ontime }}/{{ r.total }} a tiempo · {{ r.late }} retraso(s)</p>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Tabla completa -->
+<div class="glass-panel">
+  <div class="flex items-center justify-between px-5 py-3" style="border-bottom:1px solid rgba(255,255,255,0.05)">
+    <span class="text-xs font-bold uppercase tracking-wider text-base-content/40">{{ n_techs }} técnico(s) · {{ period_label }}</span>
+    <span class="text-xs text-base-content/25">Ordenado por puntualidad</span>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width:40px">#</th>
+        <th>Técnico</th>
+        <th style="text-align:center">Rotaciones</th>
+        <th style="text-align:center">A tiempo</th>
+        <th style="text-align:center">Retrasos</th>
+        <th>Puntualidad</th>
+        <th style="text-align:center">Retraso medio</th>
+        <th style="text-align:center">Peor</th>
+        <th>Última</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in ranking %}
+      <tr>
+        <td class="mono text-base-content/40">{{ loop.index }}</td>
+        <td class="font-medium text-base-content/85">
+          {% if r.tech_id %}<a href="/admin/technician/{{ r.tech_id }}" class="hover:text-blue-400 transition-colors">{{ r.name }}</a>
+          {% else %}{{ r.name }} <span class="text-base-content/20 text-xs">(archivado)</span>{% endif %}
+        </td>
+        <td style="text-align:center" class="mono">{{ r.total }}</td>
+        <td style="text-align:center" class="mono" style="color:#4ade80">{{ r.ontime }}</td>
+        <td style="text-align:center" class="mono">{% if r.late %}<span style="color:#f87171">{{ r.late }}</span>{% else %}0{% endif %}</td>
+        <td>
+          <div class="flex items-center gap-2">
+            <div class="pct-bar flex-1"><div class="pct-fill" style="width:{{ r.pct }}%;background:{{ pct_color(r.pct) }}"></div></div>
+            <span class="mono text-xs font-bold" style="color:{{ pct_color(r.pct) }};min-width:34px;text-align:right">{{ r.pct }}%</span>
+          </div>
+        </td>
+        <td style="text-align:center" class="mono text-base-content/55">{{ r.avg_late }}d</td>
+        <td style="text-align:center" class="mono">{% if r.max_late %}<span style="color:#f87171">{{ r.max_late }}d</span>{% else %}—{% endif %}</td>
+        <td class="mono text-base-content/45 whitespace-nowrap">{{ r.last_at.strftime('%d/%m/%Y') if r.last_at else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="text-xs text-base-content/25 mt-3">El % de puntualidad es rotaciones a tiempo ÷ total en el periodo. A igualdad de %, se ordena por nº de rotaciones. Los técnicos archivados se mantienen por su histórico.</p>
+{% else %}
+<div class="glass-panel flex flex-col items-center py-16 gap-3 text-base-content/25">
+  <svg class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+  <p class="text-sm">No hay rotaciones registradas en este periodo.</p>
+  <p class="text-xs text-base-content/20">Aparecerán aquí cuando los técnicos confirmen cambios de contraseña.</p>
+</div>
+{% endif %}
+{% endblock %}

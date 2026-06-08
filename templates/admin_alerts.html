@@ -1,0 +1,401 @@
+{% extends "base.html" %}
+{% block title %}Alertas a Técnicos{% endblock %}
+{% block page_title %}Alertas — Notificaciones a Técnicos{% endblock %}
+
+{% block content %}
+<style>
+  .settings-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 0.875rem;
+    overflow: hidden;
+  }
+  .settings-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .settings-card-title {
+    display: flex; align-items: center; gap: 0.625rem;
+    font-size: 0.75rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .settings-card-body { padding: 1.25rem; }
+
+  .field-label {
+    display: block; font-size: 0.65rem; font-weight: 600;
+    letter-spacing: 0.09em; text-transform: uppercase;
+    color: rgba(166,173,187,0.45); margin-bottom: 0.375rem;
+  }
+  .field-input {
+    width: 100%; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.09); border-radius: 0.5rem;
+    padding: 0.45rem 0.75rem; font-size: 0.8125rem;
+    color: rgba(166,173,187,0.85); transition: all 0.15s; outline: none;
+  }
+  .field-input:focus {
+    border-color: rgba(59,130,246,0.5);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.08);
+  }
+  .field-select {
+    width: 100%; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.09); border-radius: 0.5rem;
+    padding: 0.45rem 0.75rem; font-size: 0.8125rem;
+    color: rgba(166,173,187,0.85); outline: none; cursor: pointer;
+  }
+
+  /* ── Variable chips ── */
+  .var-chip {
+    display: inline-flex; align-items: center;
+    padding: 0.2rem 0.6rem; border-radius: 9999px;
+    font-size: 0.7rem; font-weight: 600; font-family: monospace;
+    border: 1px solid rgba(59,130,246,0.3);
+    background: rgba(59,130,246,0.08); color: #93c5fd;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .var-chip:hover { background: rgba(59,130,246,0.18); border-color: rgba(59,130,246,0.5); }
+
+  /* ── Editor / Preview grid ── */
+  .editor-preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    min-height: 420px;
+  }
+  .editor-col { display: flex; flex-direction: column; gap: 0.75rem; }
+  .preview-col { display: flex; flex-direction: column; }
+  .preview-frame {
+    flex: 1; background: white; border-radius: 0.5rem;
+    border: 1px solid #e5e7eb; padding: 1rem;
+    overflow-y: auto; color: #111827; font-size: 0.8rem;
+    min-height: 320px;
+  }
+  .preview-subject {
+    font-weight: 700; font-size: 0.875rem; color: #111827;
+    border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem; margin-bottom: 0.75rem;
+  }
+
+  /* ── Info box ── */
+  .info-box {
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 0.625rem; padding: 0.875rem 1rem;
+    font-size: 0.75rem; color: rgba(166,173,187,0.5); line-height: 1.6;
+  }
+  .info-box b { color: rgba(166,173,187,0.75); }
+
+  /* ── Send-now button ── */
+  .btn-send-now {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.45rem 1rem; border-radius: 0.5rem;
+    border: 1px solid rgba(59,130,246,0.3);
+    background: rgba(59,130,246,0.08); color: #93c5fd;
+    font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-send-now:hover { background: rgba(59,130,246,0.18); border-color: rgba(59,130,246,0.5); }
+
+  /* ── Save bar ── */
+  .save-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 0.875rem; margin-top: 1.25rem;
+  }
+  .btn-save {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1.25rem; border-radius: 0.5rem;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    color: white; font-size: 0.8rem; font-weight: 600;
+    letter-spacing: 0.05em; border: none; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-save:hover { box-shadow: 0 4px 16px rgba(59,130,246,0.35); transform: translateY(-1px); }
+  .nav-link { font-size: 0.75rem; color: rgba(166,173,187,0.35); transition: color 0.15s; text-decoration: none; }
+  .nav-link:hover { color: rgba(166,173,187,0.7); }
+</style>
+
+{% if success == '1' or success == 'restored' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm"
+     style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  {% if success == 'restored' %}Plantilla restaurada al diseño por defecto. Recuerda Guardar si la editas.{% else %}Configuración de alertas guardada correctamente.{% endif %}
+</div>
+{% elif success == 'test' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm"
+     style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);color:#93c5fd">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+  </svg>
+  Alerta de prueba enviada a tu email con un caso real.
+</div>
+{% endif %}
+{% if error %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm"
+     style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  {{ error.replace('+', ' ') }}
+</div>
+{% endif %}
+
+<form method="post" action="/admin/settings/alerts">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+
+  <!-- ── Fila superior: frecuencia ── -->
+  <div class="settings-card mb-5">
+    <div class="settings-card-header">
+      <div class="settings-card-title" style="color:rgba(251,191,36,0.8)">
+        <svg class="h-4 w-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Frecuencia de Alertas
+      </div>
+    </div>
+    <div class="settings-card-body">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
+
+        <div>
+          <label class="field-label">Primer aviso cuando quedan<span class="help-i" tabindex="0" data-help="Umbral en días para el primer aviso. Cuando a un técnico le quedan estos días o menos para rotar la contraseña de una empresa, recibe el primer email. Se envía una sola vez al cruzar el umbral.">i</span></label>
+          <div class="flex items-center gap-2">
+            <input type="number" name="alert_start_days" value="{{ cfg.alert_start_days or '7' }}"
+                   min="1" max="60" class="field-input" style="max-width:80px"/>
+            <span class="text-sm text-base-content/40">días para expirar</span>
+          </div>
+          <p class="text-xs text-base-content/25 mt-1.5">Se envía 1 aviso inicial al alcanzar este umbral</p>
+        </div>
+
+        <div>
+          <label class="field-label">Repetir alerta crítica cada<span class="help-i" tabindex="0" data-help="Cada cuánto se reenvía el aviso cuando la situación es crítica (quedan 2 días o menos, o ya expiró). Se repite con esta frecuencia hasta que el técnico confirma la rotación. No aplica mientras solo está en 'aviso'.">i</span></label>
+          <select name="alert_interval_hours" class="field-select">
+            {% set ci = cfg.alert_interval_hours or '24' %}
+            <option value="1"  {% if ci == '1'  %}selected{% endif %}>1 hora</option>
+            <option value="2"  {% if ci == '2'  %}selected{% endif %}>2 horas</option>
+            <option value="4"  {% if ci == '4'  %}selected{% endif %}>4 horas</option>
+            <option value="6"  {% if ci == '6'  %}selected{% endif %}>6 horas</option>
+            <option value="8"  {% if ci == '8'  %}selected{% endif %}>8 horas</option>
+            <option value="12" {% if ci == '12' %}selected{% endif %}>12 horas</option>
+            <option value="24" {% if ci == '24' %}selected{% endif %}>24 horas</option>
+            <option value="48" {% if ci == '48' %}selected{% endif %}>48 horas</option>
+          </select>
+          <p class="text-xs text-base-content/25 mt-1.5">Aplica cuando quedan ≤2 días o expirado</p>
+        </div>
+
+        <div class="info-box">
+          <p class="font-semibold text-base-content/50 mb-2">📋 Lógica actual</p>
+          <p>• Quedan ≤ <b>{{ cfg.alert_start_days or 7 }}</b> días → 1 aviso</p>
+          <p>• Quedan ≤ 2 días / expirado → aviso cada <b>{{ cfg.alert_interval_hours or 24 }}h</b></p>
+          <p>• Se comprueba cada hora en segundo plano</p>
+          <p>• Se detiene cuando el técnico confirma el cambio</p>
+        </div>
+
+        <!-- Envío inmediato -->
+        <div>
+          <label class="field-label">Envío inmediato</label>
+          <p class="text-xs text-base-content/30 mb-2">Recibe la plantilla de alerta real en tu correo antes de que el scheduler la dispare.</p>
+          <button type="submit" formaction="/admin/settings/alerts/test" formnovalidate
+                  class="btn-send-now w-full justify-center">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+            Enviar prueba a mí
+          </button>
+          <p class="text-xs text-base-content/25 mt-1.5 text-center">Usa el caso real más crítico como ejemplo</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Escalado automático ── -->
+  <div class="settings-card mb-5">
+    <div class="settings-card-header">
+      <div class="settings-card-title" style="color:rgba(251,146,60,0.8)">
+        <svg class="h-4 w-4" style="color:#fb923c" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+        </svg>
+        Escalado a Administradores
+      </div>
+    </div>
+    <div class="settings-card-body">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+        <label class="check-row md:col-span-1" style="display:flex;align-items:flex-start;gap:0.625rem;padding:0.75rem;border-radius:0.5rem;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer">
+          <input type="checkbox" name="alert_escalation_enabled" class="checkbox checkbox-sm mt-0.5"
+                 style="--chkbg:rgb(251,146,60);--chkfg:white"
+                 {% if cfg.alert_escalation_enabled == 'on' %}checked{% endif %}/>
+          <div>
+            <p class="text-xs font-medium text-base-content/70">Activar escalado</p>
+            <p class="text-xs text-base-content/30 mt-0.5">Avisa a los admins si el técnico ignora los avisos</p>
+          </div>
+        </label>
+
+        <div>
+          <label class="field-label">Escalar tras<span class="help-i" tabindex="0" data-help="Número de avisos enviados a un técnico sin que confirme la rotación, antes de avisar a los administradores. Se escala una sola vez por ciclo; el contador se reinicia cuando el técnico confirma.">i</span></label>
+          <div class="flex items-center gap-2">
+            <input type="number" name="alert_escalation_count" value="{{ cfg.alert_escalation_count or '3' }}"
+                   min="1" max="50" class="field-input" style="max-width:80px"/>
+            <span class="text-sm text-base-content/40">avisos sin confirmar</span>
+          </div>
+          <p class="text-xs text-base-content/25 mt-1.5">Se envía 1 email de escalado a los admins activos</p>
+        </div>
+
+        <div class="info-box">
+          <p class="font-semibold mb-1.5" style="color:rgba(251,146,60,0.7)">⛔ Cómo funciona</p>
+          <p>• Cuenta los avisos enviados sin que el técnico confirme</p>
+          <p>• Al llegar a <b>{{ cfg.alert_escalation_count or 3 }}</b>, avisa a los destinatarios</p>
+          <p>• Se escala <b>una sola vez</b> por ciclo</p>
+          <p>• El contador se reinicia cuando el técnico confirma</p>
+        </div>
+      </div>
+
+      <!-- ── Destinatarios del escalado ── -->
+      <div class="mt-6 pt-5" style="border-top:1px solid rgba(255,255,255,0.06)">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+
+          <!-- Admins seleccionables -->
+          <div>
+            <label class="field-label">¿Quién recibe el escalado?</label>
+            <p class="text-xs text-base-content/30 mb-2.5">Marca los administradores que deben recibirlo. Si no marcas ninguno (ni añades emails externos), se avisará a <b>todos</b> los admins activos.</p>
+            <div class="flex flex-col gap-1.5 max-h-44 overflow-y-auto pr-1">
+              {% for a in admins %}
+              <label style="display:flex;align-items:center;gap:0.625rem;padding:0.5rem 0.75rem;border-radius:0.5rem;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer">
+                <input type="checkbox" name="alert_escalation_admin_ids" value="{{ a.id }}"
+                       class="checkbox checkbox-sm" style="--chkbg:rgb(251,146,60);--chkfg:white"
+                       {% if a.id in selected_admin_ids %}checked{% endif %}/>
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-base-content/70 truncate">
+                    {{ a.username }}
+                    {% if not a.is_active %}<span class="text-base-content/25">(inactivo)</span>{% endif %}
+                  </p>
+                  <p class="text-xs text-base-content/30 truncate">{{ a.email or 'sin email — no recibirá' }}</p>
+                </div>
+              </label>
+              {% else %}
+              <p class="text-xs text-base-content/25 py-2">No hay administradores registrados.</p>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Emails externos -->
+          <div>
+            <label class="field-label">Emails externos (sin cuenta)</label>
+            <p class="text-xs text-base-content/30 mb-2.5">Personas que quieres notificar aunque no tengan acceso a la plataforma. Sepáralos por comas o saltos de línea.</p>
+            <textarea name="alert_escalation_extra_emails" rows="4"
+                      class="field-input font-mono text-xs leading-relaxed resize-none"
+                      placeholder="responsable@empresa.com, soc@partner.com">{{ cfg.alert_escalation_extra_emails or '' }}</textarea>
+            <p class="text-xs text-base-content/25 mt-1.5">Se combinan con los admins marcados arriba.</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Editor de plantilla ── -->
+  <div class="settings-card">
+    <div class="settings-card-header">
+      <div class="settings-card-title" style="color:rgba(147,197,253,0.8)">
+        <svg class="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        Plantilla Email — Técnicos
+      </div>
+      <p class="text-xs text-base-content/30">Mensaje que recibe el técnico cuando su empresa está próxima a expirar</p>
+    </div>
+    <div class="settings-card-body">
+
+      <!-- Variables -->
+      <div class="flex flex-wrap gap-2 mb-4">
+        {% for var, desc in email_vars.items() %}
+        <span class="var-chip" onclick="insertVar('{{ var }}')" title="{{ desc }}">{{ var }}</span>
+        {% endfor %}
+        <span class="text-xs text-base-content/20 self-center ml-1">← clic para insertar en el cuerpo</span>
+      </div>
+
+      <!-- Asunto -->
+      <div class="mb-4">
+        <label class="field-label">Asunto</label>
+        <input type="text" name="email_subject" id="email-subject"
+               value="{{ cfg.email_subject }}" oninput="updatePreview()"
+               class="field-input font-mono text-xs"/>
+      </div>
+
+      <!-- Editor + Preview -->
+      <div class="editor-preview-grid">
+        <!-- Editor -->
+        <div class="editor-col">
+          <label class="field-label">Cuerpo (HTML)</label>
+          <textarea name="email_body" id="email-body" oninput="updatePreview()"
+                    class="field-input font-mono text-xs leading-relaxed resize-none flex-1"
+                    style="min-height:340px; font-family:monospace">{{ cfg.email_body }}</textarea>
+        </div>
+
+        <!-- Preview -->
+        <div class="preview-col">
+          <label class="field-label">Vista previa{% if example_label %} — caso real: {{ example_label }}{% else %} — (sin datos: ejemplo){% endif %}</label>
+          <div class="preview-frame">
+            <div id="preview-subject" class="preview-subject"></div>
+            <div id="preview-body" class="text-xs leading-relaxed"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Save bar ── -->
+  <div class="save-bar">
+    <div class="flex items-center gap-4">
+      <button type="submit" class="btn-save">💾 Guardar cambios</button>
+      <button type="submit" formaction="/admin/settings/alerts/restore-default" formnovalidate
+              class="btn-save" style="background:rgba(255,255,255,0.05);color:rgba(166,173,187,0.8)"
+              onclick="return confirm('¿Restaurar el asunto y el cuerpo a la plantilla por defecto (diseño nuevo)? Se perderán tus ediciones actuales del email.')"
+              title="Vuelve a la plantilla de diseño por defecto">
+        ↺ Restaurar plantilla por defecto
+      </button>
+    </div>
+    <div class="flex items-center gap-4">
+      <a href="/admin/settings/smtp" class="nav-link">← SMTP</a>
+      <a href="/admin/settings/reports-config" class="nav-link">Reportes a Admins →</a>
+    </div>
+  </div>
+
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Datos REALES del caso más crítico (los mismos que recibiría el técnico)
+const sampleVars = {{ preview_vars | tojson }};
+
+function applyVars(text) {
+  let r = text;
+  for (const [k, v] of Object.entries(sampleVars)) r = r.split(k).join(v);
+  return r;
+}
+
+function updatePreview() {
+  const subj = document.getElementById('email-subject')?.value || '';
+  const body = document.getElementById('email-body')?.value || '';
+  document.getElementById('preview-subject').textContent = applyVars(subj);
+  document.getElementById('preview-body').innerHTML = applyVars(body);
+}
+
+function insertVar(v) {
+  const ta = document.getElementById('email-body');
+  if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.slice(0, s) + v + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + v.length;
+  ta.focus();
+  updatePreview();
+}
+
+document.addEventListener('DOMContentLoaded', updatePreview);
+</script>
+{% endblock %}

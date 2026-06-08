@@ -1,0 +1,648 @@
+{% extends "base.html" %}
+{% block title %}Base de Datos{% endblock %}
+{% block page_title %}Base de Datos — Monitoreo y Mantenimiento{% endblock %}
+
+{% block content %}
+<style>
+  .db-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:0.875rem; overflow:hidden; }
+  .db-card-header { display:flex; align-items:center; justify-content:space-between; padding:0.875rem 1.25rem; border-bottom:1px solid rgba(255,255,255,0.06); }
+  .db-card-title { display:flex; align-items:center; gap:0.6rem; font-size:0.7rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:rgba(166,173,187,0.5); }
+  .db-card-body { padding:1.25rem; }
+
+  .kpi { background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.06); border-radius:0.75rem; padding:1rem 1.1rem; position:relative; overflow:hidden; transition:background 0.3s; }
+  .kpi-accent { position:absolute; top:0; left:0; right:0; height:2px; transition:background 0.3s; }
+  .kpi-label { font-size:0.6rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:rgba(166,173,187,0.4); }
+  .kpi-value { font-size:1.5rem; font-weight:800; margin-top:0.35rem; line-height:1; }
+  .kpi-sub { font-size:0.7rem; color:rgba(166,173,187,0.35); margin-top:0.3rem; }
+  .flash-update { animation: flashUpd 0.6s ease; }
+  @keyframes flashUpd { 0% { background:rgba(59,130,246,0.12); } 100% { background:transparent; } }
+
+  .dot { width:0.5rem; height:0.5rem; border-radius:9999px; display:inline-block; }
+  @keyframes pulseLive { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
+  .live-dot { animation: pulseLive 1.6s infinite; }
+
+  .field-label { display:block; font-size:0.62rem; font-weight:600; letter-spacing:0.09em; text-transform:uppercase; color:rgba(166,173,187,0.45); margin-bottom:0.35rem; }
+  .field-input { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:0.5rem; padding:0.45rem 0.75rem; font-size:0.8125rem; color:rgba(166,173,187,0.85); outline:none; transition:all 0.15s; }
+  .field-input:focus { border-color:rgba(59,130,246,0.5); box-shadow:0 0 0 3px rgba(59,130,246,0.08); }
+  .mini-select { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:0.4rem; padding:0.2rem 0.5rem; font-size:0.7rem; color:rgba(166,173,187,0.7); outline:none; cursor:pointer; }
+  .mini-select option { background:#1e1f2e; }
+
+  .data-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+  .data-table th { text-align:left; padding:0.5rem 0.75rem; font-size:0.6rem; letter-spacing:0.08em; text-transform:uppercase; color:rgba(166,173,187,0.35); border-bottom:1px solid rgba(255,255,255,0.06); }
+  .data-table td { padding:0.5rem 0.75rem; border-bottom:1px solid rgba(255,255,255,0.04); color:rgba(166,173,187,0.7); }
+  .data-table tr:last-child td { border-bottom:none; }
+  .data-table tr:hover td { background:rgba(255,255,255,0.02); }
+  .bar-cell { position:relative; }
+  .bar-fill { position:absolute; left:0; top:50%; transform:translateY(-50%); height:60%; border-radius:0.25rem; background:rgba(59,130,246,0.18); transition:width 0.5s; }
+
+  .btn-action { display:inline-flex; align-items:center; gap:0.5rem; padding:0.5rem 1rem; border-radius:0.5rem; font-size:0.78rem; font-weight:600; cursor:pointer; transition:all 0.18s; border:1px solid transparent; }
+  .btn-vacuum  { background:rgba(59,130,246,0.1);  border-color:rgba(59,130,246,0.25);  color:#93c5fd; }
+  .btn-vacuum:hover  { background:rgba(59,130,246,0.18); box-shadow:0 0 12px rgba(59,130,246,0.15); }
+  .btn-backup  { background:rgba(34,197,94,0.1);  border-color:rgba(34,197,94,0.25);  color:#4ade80; }
+  .btn-backup:hover  { background:rgba(34,197,94,0.18); box-shadow:0 0 12px rgba(34,197,94,0.15); }
+  .btn-purge   { background:rgba(239,68,68,0.08); border-color:rgba(239,68,68,0.22); color:#f87171; }
+  .btn-purge:hover   { background:rgba(239,68,68,0.16); box-shadow:0 0 12px rgba(239,68,68,0.12); }
+  .btn-restore { padding:0.2rem 0.55rem; border-radius:0.4rem; font-size:0.65rem; font-weight:600; cursor:pointer; transition:all 0.15s; background:rgba(234,179,8,0.1); border:1px solid rgba(234,179,8,0.25); color:#facc15; }
+  .btn-restore:hover { background:rgba(234,179,8,0.2); }
+  .btn-save { display:inline-flex; align-items:center; gap:0.5rem; padding:0.5rem 1.25rem; border-radius:0.5rem; background:linear-gradient(135deg,#3b82f6,#6366f1); color:white; font-size:0.8rem; font-weight:600; border:none; cursor:pointer; transition:all 0.2s; }
+  .btn-save:hover { box-shadow:0 4px 16px rgba(59,130,246,0.35); transform:translateY(-1px); }
+
+  .mono { font-family:monospace; }
+</style>
+
+<!-- ── Flash messages ── -->
+{% if success == '1' or success == 'remote' or success == 'remote_test_ok' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  {% if success == 'remote' %}Configuración de copia externa guardada correctamente.
+  {% elif success == 'remote_test_ok' %}Prueba de conexión correcta. Mira el detalle en el panel de la copia externa.
+  {% else %}Configuración de base de datos guardada correctamente.{% endif %}
+</div>
+{% endif %}
+{% if info %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);color:#93c5fd">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  {{ info.replace('+', ' ') }}
+</div>
+{% endif %}
+{% if error %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  {% if error == 'remote_test_fail' %}La prueba de conexión de la copia externa falló. Mira el motivo exacto en el panel de la copia externa.
+  {% else %}{{ error }}{% endif %}
+</div>
+{% endif %}
+
+<!-- ── Barra "en vivo" ── -->
+<div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+  <div class="flex items-center gap-2 text-xs text-base-content/40">
+    <span class="dot live-dot" id="live-dot" style="background:#4ade80;box-shadow:0 0 8px #4ade80"></span>
+    <span>Actualización en vivo</span>
+    <span class="text-base-content/25">·</span>
+    <span>última: <b class="text-base-content/55 mono" id="last-refresh">{{ st.health.checked_at.strftime('%H:%M:%S') if st.health.checked_at else '—' }}</b></span>
+  </div>
+  <div class="flex items-center gap-2">
+    <label class="text-xs text-base-content/30">Refrescar cada</label>
+    <select id="refresh-interval" class="mini-select" onchange="onIntervalChange()">
+      <option value="5">5 s</option>
+      <option value="10" selected>10 s</option>
+      <option value="30">30 s</option>
+      <option value="0">Manual</option>
+    </select>
+    <button onclick="refreshNow()" class="mini-select" title="Refrescar ahora" style="cursor:pointer">↻</button>
+  </div>
+</div>
+
+<!-- ════════ 1 · KPIs de salud ════════ -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+
+  <div class="kpi" id="kpi-status">
+    <div class="kpi-accent" id="status-accent" style="background:{% if st.health.responsive %}#22c55e{% else %}#ef4444{% endif %}"></div>
+    <div class="kpi-label">Estado</div>
+    <div class="kpi-value flex items-center gap-2" id="status-value" style="color:{% if st.health.responsive %}#4ade80{% else %}#f87171{% endif %};font-size:1.1rem">
+      <span class="dot" id="status-dot" style="background:{% if st.health.responsive %}#4ade80{% else %}#f87171{% endif %};box-shadow:0 0 8px {% if st.health.responsive %}#4ade80{% else %}#f87171{% endif %}"></span>
+      <span id="status-text">{{ 'Operativa' if st.health.responsive else 'Sin respuesta' }}</span>
+    </div>
+    <div class="kpi-sub">SQLite <span id="sqlite-ver">{{ st.health.sqlite_version or '—' }}</span></div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-accent" style="background:#3b82f6"></div>
+    <div class="kpi-label">Latencia consulta</div>
+    <div class="kpi-value" style="color:#93c5fd"><span id="latency-val">{{ st.health.query_latency_ms if st.health.query_latency_ms is not none else '—' }}</span><span style="font-size:0.8rem;color:rgba(166,173,187,0.4)"> ms</span></div>
+    <div class="kpi-sub">SELECT de prueba</div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-accent" id="integrity-accent" style="background:{% if st.health.integrity_ok %}#22c55e{% elif st.health.integrity_ok is none %}#6b7280{% else %}#ef4444{% endif %}"></div>
+    <div class="kpi-label">Integridad</div>
+    <div class="kpi-value" id="integrity-val" style="color:{% if st.health.integrity_ok %}#4ade80{% elif st.health.integrity_ok is none %}#9ca3af{% else %}#f87171{% endif %};font-size:1.1rem">
+      {{ 'Correcta' if st.health.integrity_ok else ('—' if st.health.integrity_ok is none else 'Error') }}
+    </div>
+    <div class="kpi-sub">PRAGMA quick_check</div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-accent" style="background:#a855f7"></div>
+    <div class="kpi-label">RAM proceso</div>
+    <div class="kpi-value" id="ram-val" style="color:#c4b5fd;font-size:1.25rem">{{ st.health.process.rss_human if st.health.process else 'N/D' }}</div>
+    <div class="kpi-sub" id="cpu-sub">
+      {% if st.health.process %}CPU {{ st.health.process.cpu_pct }}% · {{ st.health.process.threads }} hilos{% else %}psutil no instalado{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+
+  <!-- ════════ Columna izquierda (2/3) ════════ -->
+  <div class="xl:col-span-2 flex flex-col gap-5">
+
+    <!-- Almacenamiento -->
+    <div class="db-card">
+      <div class="db-card-header">
+        <div class="db-card-title">
+          <svg class="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+          Almacenamiento
+        </div>
+        <span class="text-xs mono" id="size-summary" style="color:{% if st.size.over_threshold %}#f87171{% else %}rgba(166,173,187,0.5){% endif %}">
+          {{ st.size.used_mb }} MB / {{ st.size.max_mb }} MB
+        </span>
+      </div>
+      <div class="db-card-body">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs text-base-content/40">Uso respecto al límite configurado</span>
+          <span class="text-sm font-bold" id="size-pct-label" style="color:{% if st.size.over_threshold %}#f87171{% elif st.size.pct >= 60 %}#facc15{% else %}#4ade80{% endif %}">{{ st.size.pct }}%</span>
+        </div>
+        <div style="width:100%;height:0.6rem;background:rgba(255,255,255,0.06);border-radius:9999px;overflow:hidden">
+          <div id="size-bar" style="height:100%;width:{{ st.size.pct if st.size.pct <= 100 else 100 }}%;border-radius:9999px;background:{% if st.size.over_threshold %}linear-gradient(90deg,#ef4444,#f87171){% elif st.size.pct >= 60 %}linear-gradient(90deg,#eab308,#facc15){% else %}linear-gradient(90deg,#3b82f6,#22c55e){% endif %};transition:width 0.5s"></div>
+        </div>
+        <div class="flex items-center justify-between mt-3 text-xs">
+          <span class="text-base-content/30">Umbral de alerta: <b class="text-base-content/50">{{ st.size.threshold_pct }}%</b></span>
+          <span class="text-base-content/30">Libre estimado: <b class="text-base-content/50" id="free-mb">{{ st.size.free_mb }} MB</b></span>
+        </div>
+        <div id="size-warning" class="mt-3 px-3 py-2 rounded-lg text-xs" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;{% if not st.size.over_threshold %}display:none{% endif %}">
+          ⚠ El almacenamiento ha superado el umbral. Considera ejecutar VACUUM, purgar logs o ampliar el límite.
+        </div>
+      </div>
+    </div>
+
+    <!-- Métricas por tabla -->
+    <div class="db-card">
+      <div class="db-card-header">
+        <div class="db-card-title">
+          <svg class="h-4 w-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Tablas y registros
+        </div>
+        <span class="text-xs text-base-content/40" id="tables-summary">
+          {{ st.metrics.table_count }} tablas · {{ '{:,}'.format(st.metrics.total_rows).replace(',', '.') }} registros
+        </span>
+      </div>
+      <div class="db-card-body" style="padding:0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Tabla</th>
+              <th style="text-align:right">Registros</th>
+              <th style="width:35%">Distribución</th>
+              {% if st.metrics.dbstat_available %}<th style="text-align:right">Tamaño</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody id="tables-body" data-dbstat="{{ '1' if st.metrics.dbstat_available else '0' }}">
+            {% set max_rows = st.metrics.tables[0].rows if st.metrics.tables and st.metrics.tables[0].rows > 0 else 1 %}
+            {% for t in st.metrics.tables %}
+            <tr>
+              <td class="mono" style="color:rgba(166,173,187,0.85)">{{ t.name }}</td>
+              <td style="text-align:right" class="mono font-bold">{{ '{:,}'.format(t.rows).replace(',', '.') }}</td>
+              <td class="bar-cell"><div class="bar-fill" style="width:{{ (t.rows / max_rows * 100)|round(1) }}%"></div></td>
+              {% if st.metrics.dbstat_available %}<td style="text-align:right" class="mono text-base-content/40">{{ t.size_human or '—' }}</td>{% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Mantenimiento -->
+    <div class="db-card">
+      <div class="db-card-header">
+        <div class="db-card-title">
+          <svg class="h-4 w-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>
+          Mantenimiento
+        </div>
+      </div>
+      <div class="db-card-body">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="flex flex-col gap-2">
+            <p class="text-xs font-semibold text-base-content/60">Compactar (VACUUM)</p>
+            <p class="text-xs text-base-content/30 leading-relaxed flex-1">Reorganiza el fichero y recupera el espacio fragmentado por borrados.</p>
+            <form method="post" action="/admin/settings/database/vacuum" onsubmit="return confirm('Ejecutar VACUUM ahora? Puede tardar unos segundos y bloquea escrituras durante el proceso.')">
+              <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+              <button class="btn-action btn-vacuum w-full justify-center">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+                Ejecutar VACUUM
+              </button>
+            </form>
+          </div>
+          <div class="flex flex-col gap-2">
+            <p class="text-xs font-semibold text-base-content/60">Copia de seguridad</p>
+            <p class="text-xs text-base-content/30 leading-relaxed flex-1">Crea una copia consistente del .db en <span class="mono">data/backups/</span>.</p>
+            <form method="post" action="/admin/settings/database/backup">
+              <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+              <button class="btn-action btn-backup w-full justify-center">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+                Crear backup
+              </button>
+            </form>
+          </div>
+          <div class="flex flex-col gap-2">
+            <p class="text-xs font-semibold text-base-content/60">Purgar auditoría</p>
+            <form method="post" action="/admin/settings/database/purge"
+                  onsubmit="return confirm('Eliminar registros de auditoría más antiguos que el periodo indicado? Esta acción no se puede deshacer.')"
+                  class="flex flex-col gap-2 flex-1">
+              <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-base-content/30 whitespace-nowrap">Más de</span>
+                <input type="number" name="purge_days" value="{{ st.config.db_purge_audit_days }}" min="1" class="field-input" style="padding:0.3rem 0.5rem"/>
+                <span class="text-xs text-base-content/30">días</span>
+              </div>
+              <button class="btn-action btn-purge w-full justify-center mt-auto">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Purgar logs
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Restaurar / Importar -->
+    <div class="db-card" style="border-color:rgba(234,179,8,0.18)">
+      <div class="db-card-header" style="border-bottom-color:rgba(234,179,8,0.12)">
+        <div class="db-card-title" style="color:rgba(250,204,21,0.7)">
+          <svg class="h-4 w-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Restaurar / Importar
+        </div>
+      </div>
+      <div class="db-card-body">
+        <div class="px-3 py-2 rounded-lg text-xs mb-4" style="background:rgba(234,179,8,0.06);border:1px solid rgba(234,179,8,0.18);color:rgba(250,204,21,0.75)">
+          ⚠ Restaurar <b>reemplaza por completo</b> la base de datos actual. Antes se crea automáticamente un backup de seguridad (<span class="mono">pre_restore_*</span>). Es posible que tengas que volver a iniciar sesión tras restaurar.
+        </div>
+        <p class="text-xs font-semibold text-base-content/60 mb-2">Importar un fichero .db externo</p>
+        <form method="post" action="/admin/settings/database/import" enctype="multipart/form-data"
+              onsubmit="return confirm('Importar este fichero reemplazará la base de datos actual. Continuar?')"
+              class="flex items-center gap-3 flex-wrap">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+          <input type="file" name="db_file" accept=".db,.sqlite,.sqlite3" required
+                 class="file-input file-input-sm file-input-bordered bg-base-200 text-xs" style="max-width:280px"/>
+          <button class="btn-action btn-restore" style="padding:0.45rem 1rem;font-size:0.78rem">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0L8 8m4-4v12"/></svg>
+            Importar y restaurar
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════════ Columna derecha (1/3) ════════ -->
+  <div class="flex flex-col gap-5">
+
+    <!-- Info del fichero -->
+    <div class="db-card">
+      <div class="db-card-header">
+        <div class="db-card-title">
+          <svg class="h-4 w-4 text-base-content/40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Fichero
+        </div>
+      </div>
+      <div class="db-card-body flex flex-col gap-3 text-xs">
+        <div>
+          <div class="field-label">Ubicación</div>
+          <div class="mono text-base-content/60 break-all" style="font-size:0.7rem">{{ st.file.path }}</div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <div class="field-label">Tamaño</div>
+            <div class="text-base-content/70 font-bold" id="file-size">{{ st.file.size_human }}</div>
+          </div>
+          <div>
+            <div class="field-label">Motor</div>
+            <div class="text-base-content/70 font-bold">{{ st.file.dialect }}</div>
+          </div>
+        </div>
+        <div>
+          <div class="field-label">Última modificación</div>
+          <div class="text-base-content/60 mono" id="last-modified">{{ st.file.last_modified.strftime('%d/%m/%Y %H:%M:%S') if st.file.last_modified else '—' }}</div>
+        </div>
+        <div>
+          <div class="field-label">Pool de conexiones</div>
+          <div class="text-base-content/50 mono" id="pool-info" style="font-size:0.72rem">
+            activas: {{ st.health.pool.checked_out if st.health.pool else '—' }} · libres: {{ st.health.pool.checked_in if st.health.pool else '—' }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Config / Alertas -->
+    <div class="db-card">
+      <div class="db-card-header">
+        <div class="db-card-title">
+          <svg class="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          Umbrales y alertas
+        </div>
+      </div>
+      <div class="db-card-body">
+        <form method="post" action="/admin/settings/database" class="flex flex-col gap-3.5">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="field-label">Tamaño máx. (MB)<span class="help-i" tabindex="0" data-help="Tamaño esperado de la base de datos. Es solo la referencia para calcular el % de uso y avisar cuando se acerca al límite — NO limita el crecimiento real de la BD.">i</span></label>
+              <input type="number" name="db_max_size_mb" value="{{ st.config.db_max_size_mb }}" min="1" class="field-input"/>
+            </div>
+            <div>
+              <label class="field-label">Alerta al (%)<span class="help-i" tabindex="0" data-help="Porcentaje del tamaño máximo a partir del cual se considera que la BD está casi llena y se avisa (si las alertas por email están activadas más abajo).">i</span></label>
+              <input type="number" name="db_alert_threshold_pct" value="{{ st.config.db_alert_threshold_pct }}" min="1" max="100" class="field-input"/>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="field-label">Purga de auditoría (días)<span class="help-i" tabindex="0" data-help="Antigüedad (en días) que usa el botón 'Purgar logs' para borrar los registros de auditoría más antiguos y mantener la BD ligera. Es una purga MANUAL: solo se ejecuta cuando pulsas el botón.">i</span></label>
+              <input type="number" name="db_purge_audit_days" value="{{ st.config.db_purge_audit_days }}" min="1" class="field-input"/>
+            </div>
+            <div>
+              <label class="field-label">Backups a guardar<span class="help-i" tabindex="0" data-help="Número de copias de seguridad locales que se conservan. Al crear una nueva, se borra automáticamente la más antigua (rotación FIFO).">i</span></label>
+              <input type="number" name="db_backup_keep" value="{{ st.config.db_backup_keep }}" min="1" class="field-input"/>
+            </div>
+          </div>
+          <label class="flex items-start gap-2.5 cursor-pointer rounded-lg p-2.5" style="border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
+            <input type="checkbox" name="db_alert_enabled" class="checkbox checkbox-sm" style="--chkbg:rgb(59,130,246);--chkfg:white" {% if st.config.db_alert_enabled == 'on' %}checked{% endif %}/>
+            <div>
+              <p class="text-xs font-medium text-base-content/70">Alertas por email</p>
+              <p class="text-xs text-base-content/30 mt-0.5">Avisa a los admins con reportes si se supera el umbral o la BD no responde</p>
+            </div>
+          </label>
+          <label class="flex items-start gap-2.5 cursor-pointer rounded-lg p-2.5" style="border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
+            <input type="checkbox" name="db_auto_backup" class="checkbox checkbox-sm" style="--chkbg:rgb(34,197,94);--chkfg:white" {% if st.config.db_auto_backup == 'on' %}checked{% endif %}/>
+            <div>
+              <p class="text-xs font-medium text-base-content/70">Backup automático diario</p>
+              <p class="text-xs text-base-content/30 mt-0.5">Crea una copia cada día a las 03:00 UTC (rotación FIFO según «backups a guardar»)</p>
+            </div>
+          </label>
+          <label class="flex items-start gap-2.5 cursor-pointer rounded-lg p-2.5" style="border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
+            <input type="checkbox" name="rotation_purge_enabled" class="checkbox checkbox-sm" style="--chkbg:rgb(234,179,8);--chkfg:white" {% if st.config.rotation_purge_enabled == 'on' %}checked{% endif %}/>
+            <div class="flex-1">
+              <p class="text-xs font-medium text-base-content/70">Purga automática del histórico de rotaciones</p>
+              <p class="text-xs text-base-content/30 mt-0.5">Borra las rotaciones más antiguas que el plazo indicado. Afecta al Ranking y al Historial de Rotaciones. (El espacio es mínimo: ~0,25 MB por cada 1.000 rotaciones.)</p>
+              <div class="flex items-center gap-1.5 mt-2">
+                <span class="text-xs text-base-content/40">Conservar</span>
+                <input type="number" name="rotation_purge_days" value="{{ st.config.rotation_purge_days }}" min="1" class="field-input" style="width:90px"/>
+                <span class="text-xs text-base-content/40">días</span>
+              </div>
+            </div>
+          </label>
+          <button type="submit" class="btn-save justify-center mt-1">💾 Guardar configuración</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Backups existentes -->
+    <div class="db-card">
+      <div class="db-card-header">
+        <div class="db-card-title">
+          <svg class="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+          Backups ({{ st.backups|length }})
+        </div>
+      </div>
+      <div class="db-card-body" style="padding:0.5rem 0">
+        {% for b in st.backups %}
+        <div class="flex items-center justify-between px-5 py-2 hover:bg-white/[0.02] gap-2">
+          <div class="min-w-0">
+            <p class="text-xs mono text-base-content/70 truncate">{{ b.filename }}</p>
+            <p class="text-xs text-base-content/30 mono">{{ b.created.strftime('%d/%m/%Y %H:%M') }} · {{ b.size_human }}</p>
+          </div>
+          <form method="post" action="/admin/settings/database/restore" class="shrink-0"
+                onsubmit="return confirm('Restaurar «{{ b.filename }}»? Reemplazará la base de datos actual (se hará un backup de seguridad antes).')">
+            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+            <input type="hidden" name="filename" value="{{ b.filename }}"/>
+            <button class="btn-restore" title="Restaurar este backup">↺ Restaurar</button>
+          </form>
+        </div>
+        {% else %}
+        <p class="text-xs text-base-content/25 text-center py-6">Aún no hay copias de seguridad.<br/>Crea la primera con el botón «Crear backup».</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Copia externa (SFTP/FTP) -->
+    <div class="db-card" style="grid-column:1/-1">
+      <div class="db-card-header">
+        <div class="db-card-title">
+          <svg class="h-4 w-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+          Copia externa (SFTP / FTP)
+        </div>
+        {% if remote.last_status %}
+        <span class="text-xs" style="color:{{ '#4ade80' if remote.last_status == 'ok' else '#f87171' }}">
+          Último envío: {{ '✓' if remote.last_status == 'ok' else '✗' }} {{ remote.last_at or '' }}
+        </span>
+        {% endif %}
+      </div>
+      <div class="db-card-body">
+        <form method="post" action="/admin/settings/database/remote" class="flex flex-col gap-3.5">
+          <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+
+          <label class="flex items-start gap-2.5 cursor-pointer rounded-lg p-2.5" style="border:1px solid rgba(99,102,241,0.2);background:rgba(99,102,241,0.05)">
+            <input type="checkbox" name="remote_backup_enabled" class="checkbox checkbox-sm" style="--chkbg:rgb(99,102,241);--chkfg:white" {% if remote.remote_backup_enabled == 'on' %}checked{% endif %}/>
+            <div>
+              <p class="text-xs font-medium text-base-content/70">Replicar cada backup a un destino remoto</p>
+              <p class="text-xs text-base-content/30 mt-0.5">Cada copia (manual o automática) se sube al servidor SFTP/FTP indicado.</p>
+            </div>
+          </label>
+
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label class="field-label">Protocolo</label>
+              <select name="remote_backup_protocol" id="rb-proto" class="field-input" style="cursor:pointer">
+                <option value="sftp" {% if remote.remote_backup_protocol == 'sftp' %}selected{% endif %}>SFTP (seguro)</option>
+                <option value="ftp"  {% if remote.remote_backup_protocol == 'ftp'  %}selected{% endif %}>FTP</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Host</label>
+              <input type="text" name="remote_backup_host" value="{{ remote.remote_backup_host }}" class="field-input" placeholder="backup.miempresa.com"/>
+            </div>
+            <div>
+              <label class="field-label">Puerto</label>
+              <input type="number" name="remote_backup_port" value="{{ remote.remote_backup_port }}" class="field-input" placeholder="22 / 21"/>
+            </div>
+            <div>
+              <label class="field-label">Conservar (remoto)</label>
+              <input type="number" name="remote_backup_keep" value="{{ remote.remote_backup_keep }}" min="1" class="field-input"/>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div>
+              <label class="field-label">Usuario</label>
+              <input type="text" name="remote_backup_user" value="{{ remote.remote_backup_user }}" class="field-input" placeholder="usuario" autocomplete="off"/>
+            </div>
+            <div>
+              <label class="field-label">Contraseña</label>
+              <input type="password" name="remote_backup_pass" class="field-input" autocomplete="new-password"
+                     placeholder="{% if remote.has_password %}•••••• (sin cambios){% else %}contraseña{% endif %}"/>
+            </div>
+            <div>
+              <label class="field-label">Carpeta remota</label>
+              <input type="text" name="remote_backup_path" value="{{ remote.remote_backup_path }}" class="field-input" placeholder="/backups/accesos"/>
+            </div>
+          </div>
+
+          <label class="flex items-start gap-2.5 cursor-pointer rounded-lg p-2.5" id="rb-tls-row" style="border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
+            <input type="checkbox" name="remote_backup_tls" class="checkbox checkbox-sm" style="--chkbg:rgb(234,179,8);--chkfg:white" {% if remote.remote_backup_tls == 'on' %}checked{% endif %}/>
+            <div>
+              <p class="text-xs font-medium text-base-content/70">FTP con TLS (FTPS) — recomendado para FTP</p>
+              <p class="text-xs text-base-content/30 mt-0.5">Cifra la conexión FTP. Sin TLS, FTP transmite credenciales y datos sin cifrar. (No aplica a SFTP, que ya es seguro.)</p>
+            </div>
+          </label>
+
+          <div class="flex items-center gap-2 mt-1">
+            <button type="submit" class="btn-save justify-center">💾 Guardar copia externa</button>
+            <button type="submit" formaction="/admin/settings/database/remote-test" formnovalidate
+                    class="btn-action w-auto px-4" style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.25);color:#a5b4fc"
+                    title="Conecta, comprueba la carpeta y prueba a escribir un fichero (sin subir el backup)">
+              🔌 Probar conexión
+            </button>
+          </div>
+          <p class="text-xs text-base-content/25">«Probar conexión» <b>guarda y prueba</b> la configuración actual (no hace falta guardar antes). Comprueba conexión, carpeta y <b>permiso de escritura</b> sin subir el backup real.</p>
+
+          {% if remote.test_status %}
+          <div class="rounded-lg p-3.5 mt-1"
+               style="background:{{ 'rgba(34,197,94,0.06)' if remote.test_status == 'ok' else 'rgba(239,68,68,0.06)' }};border:1px solid {{ 'rgba(34,197,94,0.2)' if remote.test_status == 'ok' else 'rgba(239,68,68,0.2)' }}">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="text-xs font-bold uppercase tracking-wider" style="color:{{ '#4ade80' if remote.test_status == 'ok' else '#f87171' }}">
+                {{ '✓ Prueba de conexión: correcta' if remote.test_status == 'ok' else '✗ Prueba de conexión: error' }}
+              </span>
+              <span class="text-xs text-base-content/30">{{ remote.test_at or '' }}</span>
+            </div>
+            <p class="text-xs leading-relaxed" style="color:{{ 'rgba(166,173,187,0.7)' if remote.test_status == 'ok' else 'rgba(248,113,113,0.85)' }};word-break:break-word">
+              {{ remote.test_detail or '—' }}
+            </p>
+          </div>
+          {% endif %}
+
+          {% if remote.last_detail %}
+          <p class="text-xs text-base-content/30 mt-1">
+            Último envío real: <span style="color:{{ '#4ade80' if remote.last_status == 'ok' else '#f87171' }}">{{ remote.last_detail }}</span>{% if remote.last_at %} · {{ remote.last_at }}{% endif %}
+          </p>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let refreshTimer = null;
+
+function fmtInt(n) { return (n ?? 0).toLocaleString('es-ES'); }
+
+function applyStatus(d) {
+  const h = d.health, s = d.size, m = d.metrics, f = d.file;
+
+  // ── Estado ──
+  const resp = h.responsive;
+  const okColor = '#4ade80', koColor = '#f87171';
+  setText('status-text', resp ? 'Operativa' : 'Sin respuesta');
+  setStyle('status-value', 'color', resp ? okColor : koColor);
+  setStyle('status-dot', 'background', resp ? okColor : koColor);
+  setStyle('status-dot', 'boxShadow', '0 0 8px ' + (resp ? okColor : koColor));
+  setStyle('status-accent', 'background', resp ? '#22c55e' : '#ef4444');
+  setText('sqlite-ver', h.sqlite_version || '—');
+
+  // ── Latencia ──
+  setText('latency-val', h.query_latency_ms != null ? h.query_latency_ms : '—');
+
+  // ── Integridad ──
+  let iTxt, iColor, iAccent;
+  if (h.integrity_ok === true)      { iTxt='Correcta'; iColor='#4ade80'; iAccent='#22c55e'; }
+  else if (h.integrity_ok === null) { iTxt='—';        iColor='#9ca3af'; iAccent='#6b7280'; }
+  else                              { iTxt='Error';     iColor='#f87171'; iAccent='#ef4444'; }
+  setText('integrity-val', iTxt); setStyle('integrity-val','color',iColor); setStyle('integrity-accent','background',iAccent);
+
+  // ── RAM / CPU ──
+  if (h.process) {
+    setText('ram-val', h.process.rss_human);
+    setText('cpu-sub', 'CPU ' + h.process.cpu_pct + '% · ' + h.process.threads + ' hilos');
+  }
+
+  // ── Almacenamiento ──
+  const over = s.over_threshold;
+  const pct = s.pct;
+  setText('size-summary', s.used_mb + ' MB / ' + s.max_mb + ' MB');
+  setStyle('size-summary','color', over ? koColor : 'rgba(166,173,187,0.5)');
+  setText('size-pct-label', pct + '%');
+  setStyle('size-pct-label','color', over ? koColor : (pct >= 60 ? '#facc15' : okColor));
+  const bar = document.getElementById('size-bar');
+  if (bar) {
+    bar.style.width = Math.min(pct, 100) + '%';
+    bar.style.background = over ? 'linear-gradient(90deg,#ef4444,#f87171)'
+                         : (pct >= 60 ? 'linear-gradient(90deg,#eab308,#facc15)' : 'linear-gradient(90deg,#3b82f6,#22c55e)');
+  }
+  setText('free-mb', s.free_mb + ' MB');
+  const warn = document.getElementById('size-warning');
+  if (warn) warn.style.display = over ? '' : 'none';
+
+  // ── Fichero ──
+  setText('file-size', f.size_human);
+  setText('last-modified', f.last_modified);
+  if (h.pool) setText('pool-info', 'activas: ' + (h.pool.checked_out ?? '—') + ' · libres: ' + (h.pool.checked_in ?? '—'));
+
+  // ── Tabla de métricas ──
+  setText('tables-summary', m.table_count + ' tablas · ' + fmtInt(m.total_rows) + ' registros');
+  const body = document.getElementById('tables-body');
+  if (body && m.tables.length) {
+    const hasDbstat = body.dataset.dbstat === '1';
+    const maxRows = m.tables[0].rows > 0 ? m.tables[0].rows : 1;
+    body.innerHTML = m.tables.map(t => {
+      const w = (t.rows / maxRows * 100).toFixed(1);
+      const sizeCell = hasDbstat ? `<td style="text-align:right" class="mono text-base-content/40">${t.size_human || '—'}</td>` : '';
+      return `<tr>
+        <td class="mono" style="color:rgba(166,173,187,0.85)">${t.name}</td>
+        <td style="text-align:right" class="mono font-bold">${fmtInt(t.rows)}</td>
+        <td class="bar-cell"><div class="bar-fill" style="width:${w}%"></div></td>
+        ${sizeCell}
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Indicador de refresco ──
+  setText('last-refresh', d.server_time);
+  const dot = document.getElementById('live-dot');
+  if (dot) { dot.classList.remove('flash-update'); void dot.offsetWidth; dot.classList.add('flash-update'); }
+}
+
+function setText(id, val) { const e = document.getElementById(id); if (e) e.textContent = val; }
+function setStyle(id, prop, val) { const e = document.getElementById(id); if (e) e.style[prop] = val; }
+
+async function refreshNow() {
+  try {
+    const r = await fetch('/admin/settings/database/metrics.json', { headers: { 'X-Requested-With': 'fetch' } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    applyStatus(await r.json());
+  } catch (e) {
+    const dot = document.getElementById('live-dot');
+    if (dot) { dot.style.background = '#f87171'; dot.style.boxShadow = '0 0 8px #f87171'; }
+  }
+}
+
+function onIntervalChange() {
+  const sel = document.getElementById('refresh-interval');
+  const secs = parseInt(sel.value, 10);
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+  const dot = document.getElementById('live-dot');
+  if (secs > 0) {
+    if (dot) dot.classList.add('live-dot');
+    refreshTimer = setInterval(refreshNow, secs * 1000);
+  } else {
+    if (dot) dot.classList.remove('live-dot');
+  }
+  try { localStorage.setItem('dbRefreshInterval', String(secs)); } catch (e) {}
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Restaurar preferencia de intervalo
+  try {
+    const saved = localStorage.getItem('dbRefreshInterval');
+    if (saved !== null) document.getElementById('refresh-interval').value = saved;
+  } catch (e) {}
+  onIntervalChange();
+  // Pausar el polling cuando la pestaña no está visible (ahorra recursos)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; } }
+    else { onIntervalChange(); refreshNow(); }
+  });
+});
+</script>
+{% endblock %}

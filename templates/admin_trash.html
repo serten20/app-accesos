@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Papelera{% endblock %}
+{% block page_title %}Papelera — Elementos archivados{% endblock %}
+
+{% block content %}
+<style>
+  .glass-panel { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:0.875rem; overflow:hidden; }
+  .data-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+  .data-table th { text-align:left; padding:0.6rem 1rem; font-size:0.6rem; letter-spacing:0.08em; text-transform:uppercase; color:rgba(166,173,187,0.35); border-bottom:1px solid rgba(255,255,255,0.06); }
+  .data-table td { padding:0.6rem 1rem; border-bottom:1px solid rgba(255,255,255,0.04); color:rgba(166,173,187,0.78); }
+  .data-table tr:last-child td { border-bottom:none; }
+  .data-table tr:hover td { background:rgba(255,255,255,0.02); }
+  .pill { display:inline-flex; padding:0.1rem 0.55rem; border-radius:9999px; font-size:0.6rem; font-weight:700; letter-spacing:0.05em; }
+  .pill-company { background:rgba(59,130,246,0.1); color:#93c5fd; border:1px solid rgba(59,130,246,0.2); }
+  .pill-tech    { background:rgba(34,197,94,0.1); color:#4ade80; border:1px solid rgba(34,197,94,0.2); }
+  .mono { font-family:monospace; }
+  .btn-restore { display:inline-flex; align-items:center; gap:0.35rem; padding:0.3rem 0.7rem; border-radius:0.45rem; font-size:0.7rem; font-weight:600; cursor:pointer; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.25); color:#4ade80; transition:all 0.15s; }
+  .btn-restore:hover { background:rgba(34,197,94,0.18); }
+  .btn-purge { display:inline-flex; align-items:center; gap:0.35rem; padding:0.3rem 0.7rem; border-radius:0.45rem; font-size:0.7rem; font-weight:600; cursor:pointer; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.22); color:#f87171; transition:all 0.15s; }
+  .btn-purge:hover { background:rgba(239,68,68,0.16); }
+  .cfg-panel { background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.06); border-radius:0.75rem; padding:1rem 1.25rem; margin-bottom:1.25rem; }
+  .field-input { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:0.5rem; padding:0.35rem 0.6rem; font-size:0.8rem; color:rgba(166,173,187,0.85); outline:none; width:70px; }
+  .btn-save { display:inline-flex; align-items:center; gap:0.4rem; padding:0.45rem 1rem; border-radius:0.5rem; background:linear-gradient(135deg,#3b82f6,#6366f1); color:white; font-size:0.75rem; font-weight:600; border:none; cursor:pointer; }
+  .btn-save:hover { box-shadow:0 4px 14px rgba(59,130,246,0.3); }
+</style>
+
+{% if success %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+  {% if success == 'restored' %}✓ Elemento restaurado correctamente.{% if request.query_params.get('skipped') %} ({{ request.query_params.get('skipped') }} asignación(es) omitidas por referencias inexistentes){% endif %}
+  {% elif success == 'purged' %}✓ Elemento eliminado definitivamente.
+  {% elif success == 'config' %}✓ Configuración de retención guardada.
+  {% else %}✓ Hecho.{% endif %}
+</div>
+{% endif %}
+{% if error %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171">
+  ✗ {{ error.replace('+', ' ') }}
+</div>
+{% endif %}
+
+<!-- Configuración de retención -->
+<div class="cfg-panel">
+  <form method="post" action="/admin/trash/config" class="flex items-center justify-between gap-4 flex-wrap">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+    <div>
+      <p class="text-sm font-semibold text-base-content/70">Retención automática</p>
+      <p class="text-xs text-base-content/30 mt-0.5">Si la activas, los elementos archivados se borran definitivamente al superar los días indicados. Desactivada = se conservan hasta que los borres a mano.</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <label class="flex items-center gap-2 text-xs text-base-content/60 cursor-pointer">
+        <input type="checkbox" name="trash_auto_purge_enabled" class="checkbox checkbox-sm" style="--chkbg:rgb(99,102,241);--chkfg:white" {% if auto_enabled %}checked{% endif %}/>
+        Activar
+      </label>
+      <div class="flex items-center gap-1.5">
+        <input type="number" name="trash_purge_days" value="{{ purge_days }}" min="1" max="3650" class="field-input"/>
+        <span class="text-xs text-base-content/40">días</span>
+      </div>
+      <button type="submit" class="btn-save">Guardar</button>
+    </div>
+  </form>
+</div>
+
+<!-- Lista -->
+<div class="glass-panel">
+  <div class="flex items-center justify-between px-5 py-3" style="border-bottom:1px solid rgba(255,255,255,0.05)">
+    <span class="text-xs font-bold uppercase tracking-wider text-base-content/40">{{ items|length }} elemento(s) en la papelera</span>
+    <span class="text-xs text-base-content/25">Más recientes primero</span>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Tipo</th>
+        <th>Nombre</th>
+        <th>Detalle</th>
+        <th>Archivado por</th>
+        <th>Fecha</th>
+        <th style="text-align:right">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>
+          {% if it.entity_type == 'company' %}<span class="pill pill-company">EMPRESA</span>
+          {% else %}<span class="pill pill-tech">TÉCNICO</span>{% endif %}
+        </td>
+        <td class="font-medium text-base-content/85">{{ it.name }}</td>
+        <td class="text-base-content/45">{{ it.detail or '—' }}</td>
+        <td class="text-base-content/50">{{ it.archived_by or '—' }}</td>
+        <td class="mono text-base-content/50 whitespace-nowrap">{{ it.archived_at.strftime('%d/%m/%Y %H:%M') if it.archived_at else '—' }}</td>
+        <td style="text-align:right">
+          <div class="inline-flex items-center gap-1.5">
+            <form method="post" action="/admin/trash/{{ it.id }}/restore" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+              <button type="submit" class="btn-restore" title="Restaurar a su tabla original">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Restaurar
+              </button>
+            </form>
+            <form method="post" action="/admin/trash/{{ it.id }}/purge" style="display:inline"
+                  onsubmit="return confirm('¿Eliminar DEFINITIVAMENTE «{{ it.name }}»? Esta acción no se puede deshacer.')">
+              <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+              <button type="submit" class="btn-purge" title="Borrar definitivamente">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Eliminar
+              </button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-center text-base-content/25 py-10">La papelera está vacía. Cuando archives una empresa o un técnico, aparecerá aquí y podrás restaurarlo.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="text-xs text-base-content/25 mt-3">Restaurar reconstruye el elemento y sus asignaciones (las que sigan teniendo sus referencias). Eliminar definitivamente es irreversible.</p>
+{% endblock %}
