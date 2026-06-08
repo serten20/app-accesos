@@ -33,6 +33,19 @@
   .legend-dot { width:10px; height:10px; border-radius:9999px; display:inline-block; }
 </style>
 
+<!-- Acciones -->
+<div class="flex items-center gap-3 mb-4 no-print">
+  <a href="/admin/reports" class="btn btn-sm btn-ghost text-base-content/50">← Reportes</a>
+  <div class="ml-auto">
+    <button onclick="window.print()" class="btn btn-sm btn-outline gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+      </svg>
+      Imprimir
+    </button>
+  </div>
+</div>
+
 <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
   <div class="flex items-center gap-4 text-xs text-base-content/50 flex-wrap">
     <span class="flex items-center gap-1.5"><span class="legend-dot n-ok"></span> OK</span>
