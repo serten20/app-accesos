@@ -57,48 +57,56 @@ WELCOME_VARS = {
 }
 
 DEFAULT_REPORT_SUBJECT = "📊 Reporte de Accesos — {fecha} — Cumplimiento {compliance_pct}%"
+# Plantilla "a prueba de Outlook Desktop" (motor Word): tablas + bgcolor en todas
+# las celdas, anchos por atributo, ghost table MSO. Tema claro.
 DEFAULT_REPORT_BODY = """\
-<div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;background:#0f1117;color:#a6adbb;border-radius:12px;overflow:hidden">
-  <div style="background:linear-gradient(135deg,#1e3a5f,#1e1b4b);padding:28px 32px">
-    <h1 style="margin:0;font-size:20px;color:#60a5fa;letter-spacing:2px">ACCESOS</h1>
-    <p style="margin:4px 0 0;font-size:12px;color:#6b7280">Security Access Manager · Reporte Periódico</p>
-  </div>
-  <div style="padding:28px 32px">
-    <h2 style="margin:0 0 6px;font-size:16px;color:#e5e7eb">Reporte del {fecha}</h2>
-    <p style="margin:0 0 24px;font-size:13px;color:#6b7280">Resumen del estado de todas las empresas y técnicos.</p>
-
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px">
-      <div style="background:#1a1f2e;border:1px solid #22c55e33;border-radius:8px;padding:14px;text-align:center">
-        <div style="font-size:24px;font-weight:800;color:#4ade80">{ok}</div>
-        <div style="font-size:10px;color:#6b7280;letter-spacing:1px;margin-top:4px">OK</div>
-      </div>
-      <div style="background:#1a1f2e;border:1px solid #eab30833;border-radius:8px;padding:14px;text-align:center">
-        <div style="font-size:24px;font-weight:800;color:#facc15">{en_aviso}</div>
-        <div style="font-size:10px;color:#6b7280;letter-spacing:1px;margin-top:4px">ATENCIÓN</div>
-      </div>
-      <div style="background:#1a1f2e;border:1px solid #ef444433;border-radius:8px;padding:14px;text-align:center">
-        <div style="font-size:24px;font-weight:800;color:#f87171">{criticas}</div>
-        <div style="font-size:10px;color:#6b7280;letter-spacing:1px;margin-top:4px">CRÍTICAS</div>
-      </div>
-      <div style="background:#1a1f2e;border:1px solid #3b82f633;border-radius:8px;padding:14px;text-align:center">
-        <div style="font-size:24px;font-weight:800;color:#60a5fa">{compliance_pct}%</div>
-        <div style="font-size:10px;color:#6b7280;letter-spacing:1px;margin-top:4px">CUMPLIM.</div>
-      </div>
-    </div>
-
-    <h3 style="font-size:12px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin:0 0 12px">Estado por empresa</h3>
-    {tabla_empresas}
-
-    <p style="margin:24px 0 0;font-size:11px;color:#4b5563;text-align:center">
-      Técnicos con empresas críticas: <b style="color:#f87171">{tecnicos_ko}</b> ·
-      Total empresas: <b style="color:#9ca3af">{total_empresas}</b>
-    </p>
-  </div>
-  <div style="background:#0a0d14;padding:16px 32px;text-align:center">
-    <p style="margin:0;font-size:11px;color:#374151">Security Access Manager · Uso interno · Generado automáticamente</p>
-  </div>
-</div>
-"""
+<!--[if mso]><table role="presentation" width="680" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f1f5f9" style="background-color:#f1f5f9">
+<tr><td align="center" style="padding:24px 10px">
+  <table role="presentation" width="680" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:680px;max-width:680px;background-color:#ffffff;border:1px solid #e5e7eb">
+    <tr><td bgcolor="#1e1b4b" style="background-color:#1e1b4b;padding:22px 30px;font-family:Arial,Helvetica,sans-serif">
+      <span style="font-size:20px;font-weight:bold;color:#93c5fd;letter-spacing:2px">ACCESOS</span><br/>
+      <span style="font-size:12px;color:#c7d2fe">Security Access Manager &middot; Reporte periódico — {fecha}</span>
+    </td></tr>
+    <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:24px 30px 6px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#374151;line-height:1.6">
+      Resumen del estado de todas las empresas y técnicos a fecha de <b style="color:#111827">{fecha}</b>.
+    </td></tr>
+    <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:10px 30px 6px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td width="25%" bgcolor="#f9fafb" align="center" style="background-color:#f9fafb;border:1px solid #e5e7eb;padding:14px;font-family:Arial,Helvetica,sans-serif">
+            <div style="font-size:24px;font-weight:bold;color:#16a34a">{ok}</div>
+            <div style="font-size:10px;color:#6b7280;letter-spacing:1px;margin-top:4px">OK</div>
+          </td>
+          <td width="25%" bgcolor="#f9fafb" align="center" style="background-color:#f9fafb;border:1px solid #e5e7eb;padding:14px;font-family:Arial,Helvetica,sans-serif">
+            <div style="font-size:24px;font-weight:bold;color:#d97706">{en_aviso}</div>
+            <div style="font-size:10px;color:#6b7280;letter-spacing:1px;margin-top:4px">ATENCIÓN</div>
+          </td>
+          <td width="25%" bgcolor="#f9fafb" align="center" style="background-color:#f9fafb;border:1px solid #e5e7eb;padding:14px;font-family:Arial,Helvetica,sans-serif">
+            <div style="font-size:24px;font-weight:bold;color:#dc2626">{criticas}</div>
+            <div style="font-size:10px;color:#6b7280;letter-spacing:1px;margin-top:4px">CRÍTICAS</div>
+          </td>
+          <td width="25%" bgcolor="#eef2ff" align="center" style="background-color:#eef2ff;border:1px solid #c7d2fe;padding:14px;font-family:Arial,Helvetica,sans-serif">
+            <div style="font-size:24px;font-weight:bold;color:#4338ca">{compliance_pct}%</div>
+            <div style="font-size:10px;color:#6b7280;letter-spacing:1px;margin-top:4px">CUMPLIM.</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+    <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:18px 30px 4px;font-family:Arial,Helvetica,sans-serif">
+      <div style="font-size:11px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Estado por empresa</div>
+      {tabla_empresas}
+    </td></tr>
+    <tr><td bgcolor="#ffffff" align="center" style="background-color:#ffffff;padding:16px 30px 22px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6b7280">
+      Técnicos con empresas críticas: <b style="color:#dc2626">{tecnicos_ko}</b> &middot; Total empresas: <b style="color:#111827">{total_empresas}</b>
+    </td></tr>
+    <tr><td bgcolor="#f1f5f9" align="center" style="background-color:#f1f5f9;padding:14px 30px;border-top:1px solid #e5e7eb;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#9ca3af">
+      Security Access Manager &middot; Uso interno &middot; Generado automáticamente
+    </td></tr>
+  </table>
+</td></tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->"""
 
 DEFAULT_SUBJECT = "⚠️ Rotación de contraseña pendiente — {company}"
 # Plantilla "a prueba de Outlook Desktop" (motor Word): bgcolor en TODAS las
@@ -672,31 +680,38 @@ def job_check_alerts():
 
 
 def _build_tabla_empresas(companies: list) -> str:
-    """Genera la tabla HTML de empresas para el email de reporte."""
-    color_map = {"critical": "#f87171", "warning": "#facc15", "ok": "#4ade80"}
+    """Genera la tabla HTML de empresas para el email de reporte. A prueba de
+    Outlook Desktop: tablas + bgcolor, colores legibles sobre fondo claro."""
+    color_map = {"critical": "#dc2626", "warning": "#d97706", "ok": "#16a34a"}
+    bg_map    = {"critical": "#fef2f2", "warning": "#fffbeb", "ok": "#f0fdf4"}
     label_map = {"critical": "CRÍTICO", "warning": "ATENCIÓN", "ok": "OK"}
+    th = ("padding:8px 12px;text-align:left;font-size:10px;color:#6b7280;letter-spacing:1px;"
+          "text-transform:uppercase;border-bottom:1px solid #e5e7eb;font-family:Arial,Helvetica,sans-serif")
     rows = ""
     for c in sorted(companies, key=lambda x: x.days_remaining):
-        color = color_map.get(c.status, "#9ca3af")
+        color = color_map.get(c.status, "#6b7280")
+        bg    = bg_map.get(c.status, "#f3f4f6")
         label = label_map.get(c.status, c.status.upper())
         dias = "EXP" if c.days_remaining <= 0 else f"{c.days_remaining}d"
         rows += (
-            f"<tr>"
-            f"<td style='padding:8px 12px;border-bottom:1px solid #1f2937;color:#d1d5db'>{c.name}</td>"
-            f"<td style='padding:8px 12px;border-bottom:1px solid #1f2937;font-family:monospace;font-weight:700;color:{color}'>{dias}</td>"
-            f"<td style='padding:8px 12px;border-bottom:1px solid #1f2937'>"
-            f"<span style='background:{color}22;color:{color};border:1px solid {color}44;"
-            f"border-radius:9999px;padding:2px 8px;font-size:10px;font-weight:700;letter-spacing:1px'>{label}</span>"
-            f"</td>"
-            f"</tr>"
+            "<tr>"
+            f"<td style='padding:8px 12px;border-bottom:1px solid #eef0f3;color:#111827;font-family:Arial,Helvetica,sans-serif;font-size:13px'>{c.name}</td>"
+            f"<td style='padding:8px 12px;border-bottom:1px solid #eef0f3;font-family:Courier New,monospace;font-weight:bold;color:{color};font-size:13px'>{dias}</td>"
+            f"<td style='padding:8px 12px;border-bottom:1px solid #eef0f3'>"
+            f"<table role='presentation' cellpadding='0' cellspacing='0' border='0' style='display:inline-block'><tr>"
+            f"<td bgcolor='{bg}' style='background-color:{bg};border:1px solid {color};padding:2px 9px;"
+            f"font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:1px;color:{color}'>{label}</td>"
+            f"</tr></table></td>"
+            "</tr>"
         )
     return (
-        f"<table style='width:100%;border-collapse:collapse;background:#1a1f2e;border-radius:8px;overflow:hidden'>"
-        f"<thead><tr>"
-        f"<th style='padding:8px 12px;text-align:left;font-size:10px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #374151'>Empresa</th>"
-        f"<th style='padding:8px 12px;text-align:left;font-size:10px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #374151'>Días</th>"
-        f"<th style='padding:8px 12px;text-align:left;font-size:10px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid #374151'>Estado</th>"
-        f"</tr></thead><tbody>{rows}</tbody></table>"
+        "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' bgcolor='#ffffff' "
+        "style='background-color:#ffffff;border:1px solid #e5e7eb'>"
+        f"<tr bgcolor='#f9fafb'>"
+        f"<td bgcolor='#f9fafb' style='background-color:#f9fafb;{th}'>Empresa</td>"
+        f"<td bgcolor='#f9fafb' style='background-color:#f9fafb;{th}'>Días</td>"
+        f"<td bgcolor='#f9fafb' style='background-color:#f9fafb;{th}'>Estado</td>"
+        f"</tr>{rows}</table>"
     )
 
 

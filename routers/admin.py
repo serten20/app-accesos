@@ -2,7 +2,7 @@ import csv
 import io
 from datetime import date, datetime
 from fastapi import APIRouter, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse, FileResponse
 from sqlalchemy import or_
 from auth import require_admin, require_viewer, hash_password
 from models import User, Company, TechnicianCompany, AuditLog, AppSettings
@@ -662,13 +662,29 @@ async def technician_detail(request: Request, tech_id: int):
     if not tech:
         return RedirectResponse("/admin/users", status_code=302)
     all_companies = db.query(Company).all()
-    assigned_ids = {c.id for c in tech.companies}
+    # Estado POR TÉCNICO (su propio TechnicianCompany), no el global de la empresa
+    tc_map = {tc.company_id: tc for tc in tech.tc_assocs}
+    assigned_ids = set(tc_map.keys())
+    assigned = list(tc_map.values())
+    tstats = {
+        "total":    len(assigned),
+        "ok":       sum(1 for tc in assigned if tc.status == "ok"),
+        "warning":  sum(1 for tc in assigned if tc.status == "warning"),
+        "critical": sum(1 for tc in assigned if tc.status == "critical"),
+    }
+    # Datos serializables por empresa para la plantilla (días/estado del técnico)
+    tc_state = {
+        cid: {"days": tc.days_remaining, "status": tc.status, "color": tc.status_color}
+        for cid, tc in tc_map.items()
+    }
     return templates.TemplateResponse("admin_technician.html", {
         "request": request,
         "user": request.state.current_user,
         "tech": tech,
         "all_companies": sorted(all_companies, key=lambda c: c.name),
         "assigned_ids": assigned_ids,
+        "tc_state": tc_state,
+        "tstats": tstats,
         "success": request.query_params.get("success"),
     })
 
@@ -1238,6 +1254,18 @@ async def reports_config_post(
     return RedirectResponse("/admin/settings/reports-config?success=1", status_code=302)
 
 
+@router.post("/settings/reports-config/restore-default")
+@require_admin
+async def reports_restore_default(request: Request):
+    """Restaura asunto y cuerpo del reporte a los valores por defecto (diseño nuevo)."""
+    from scheduler import DEFAULT_REPORT_SUBJECT, DEFAULT_REPORT_BODY
+    set_setting("report_subject", DEFAULT_REPORT_SUBJECT)
+    set_setting("report_body", DEFAULT_REPORT_BODY)
+    audit_mod.log(request.state.db, "Plantilla de reporte restaurada a la de por defecto",
+                  user_id=request.state.current_user.id)
+    return RedirectResponse("/admin/settings/reports-config?success=restored", status_code=302)
+
+
 # ── Bienvenida — alta de técnicos ────────────────────────────────────────────
 
 @router.get("/settings/welcome", response_class=HTMLResponse)
@@ -1593,6 +1621,20 @@ async def database_backup(request: Request):
         )
     except Exception as e:
         return RedirectResponse(f"/admin/settings/database?error={str(e)[:120]}", status_code=302)
+
+
+@router.get("/settings/database/backup/download/{filename}")
+@require_admin
+async def database_backup_download(request: Request, filename: str):
+    """Descarga un backup .db al equipo del admin. Solo administradores."""
+    import db_admin
+    path = db_admin.backup_file_path(filename)
+    if not path:
+        return RedirectResponse("/admin/settings/database?error=Backup+no+encontrado", status_code=302)
+    fname = _os.path.basename(path)
+    audit_mod.log(request.state.db, f"Backup descargado: {fname}",
+                  user_id=request.state.current_user.id, level="warning")
+    return FileResponse(path, filename=fname, media_type="application/octet-stream")
 
 
 @router.post("/settings/database/purge")

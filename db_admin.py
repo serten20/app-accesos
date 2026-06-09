@@ -468,6 +468,17 @@ def restore_from_path(source_path: str) -> dict:
     return {"ok": True, "safety_backup": os.path.basename(safety_path)}
 
 
+def backup_file_path(filename: str) -> str | None:
+    """Ruta validada de un backup dentro de BACKUP_DIR, o None si no existe o el
+    nombre intenta salir del directorio (anti path-traversal)."""
+    safe = os.path.basename(filename)
+    path = os.path.join(BACKUP_DIR, safe)
+    base = os.path.abspath(BACKUP_DIR)
+    if os.path.isfile(path) and os.path.abspath(path).startswith(base + os.sep):
+        return path
+    return None
+
+
 def restore_backup(filename: str) -> dict:
     """Restaura desde un backup existente en data/backups/ (valida nombre)."""
     safe = os.path.basename(filename)          # evita path traversal

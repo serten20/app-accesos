@@ -40,15 +40,15 @@
 
         <div class="grid grid-cols-3 gap-3 text-center">
           <div class="bg-base-200 rounded-lg p-3">
-            <p class="text-xl font-bold text-primary">{{ tech.companies|length }}</p>
+            <p class="text-xl font-bold text-primary">{{ tstats.total }}</p>
             <p class="text-xs text-base-content/40 mt-0.5">Total</p>
           </div>
           <div class="bg-base-200 rounded-lg p-3">
-            <p class="text-xl font-bold text-success">{{ tech.companies|selectattr('status', 'eq', 'ok')|list|length }}</p>
+            <p class="text-xl font-bold text-success">{{ tstats.ok }}</p>
             <p class="text-xs text-base-content/40 mt-0.5">OK</p>
           </div>
           <div class="bg-base-200 rounded-lg p-3">
-            <p class="text-xl font-bold text-error">{{ tech.companies|selectattr('status', 'eq', 'critical')|list|length }}</p>
+            <p class="text-xl font-bold text-error">{{ tstats.critical }}</p>
             <p class="text-xs text-base-content/40 mt-0.5">Crítico</p>
           </div>
         </div>
@@ -132,17 +132,20 @@
       <div class="overflow-y-auto max-h-[32rem]">
         <ul class="divide-y divide-base-200" id="company-list-tech">
           {% for company in all_companies %}
+          {% set st = tc_state.get(company.id) %}
+          {% set dr = st.days if st else company.days_remaining %}
+          {% set sc = st.color if st else company.status_color %}
           <li class="flex items-center justify-between px-5 py-3 hover:bg-base-200/40 company-item-t"
               data-name="{{ company.name|lower }}"
-              data-days="{{ company.days_remaining }}"
+              data-days="{{ dr }}"
               data-assigned="{{ '1' if company.id in assigned_ids else '0' }}">
             <div class="flex items-center gap-3">
-              <span class="w-2 h-2 rounded-full bg-{{ company.status_color }} shrink-0"></span>
+              <span class="w-2 h-2 rounded-full bg-{{ sc }} shrink-0"></span>
               <div>
                 <p class="text-sm font-medium">{{ company.name }}</p>
                 <p class="text-xs text-base-content/40">
-                  {% if company.days_remaining <= 0 %}Expirado{% else %}{{ company.days_remaining }}d restantes{% endif %}
-                  · {{ company.expiry_days }}d ciclo
+                  {% if dr <= 0 %}Expirado{% else %}{{ dr }}d restantes{% endif %}
+                  · {{ company.expiry_days }}d ciclo{% if not st %} · <span class="italic">sin asignar</span>{% endif %}
                 </p>
               </div>
             </div>

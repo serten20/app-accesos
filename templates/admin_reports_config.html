@@ -124,13 +124,13 @@
   .nav-link:hover { color: rgba(166,173,187,0.7); }
 </style>
 
-{% if success == '1' %}
+{% if success == '1' or success == 'restored' %}
 <div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm"
      style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
   <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
   </svg>
-  Configuración de reportes guardada correctamente.
+  {% if success == 'restored' %}Plantilla de reporte restaurada al diseño por defecto. Recuerda Guardar si la editas.{% else %}Configuración de reportes guardada correctamente.{% endif %}
 </div>
 {% elif success == 'test' %}
 <div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm"
@@ -289,6 +289,11 @@
   <div class="save-bar">
     <div class="flex items-center gap-4">
       <button type="submit" class="btn-save">💾 Guardar cambios</button>
+      <button type="submit" formaction="/admin/settings/reports-config/restore-default" formnovalidate
+              class="btn-save" style="background:rgba(255,255,255,0.05);color:rgba(166,173,187,0.8)"
+              onclick="return confirm('¿Restaurar el asunto y el cuerpo a la plantilla por defecto (diseño nuevo, compatible Outlook)? Se perderán tus ediciones actuales.')">
+        ↺ Restaurar plantilla por defecto
+      </button>
     </div>
     <div class="flex items-center gap-4">
       <a href="/admin/settings/alerts" class="nav-link">← Alertas a Técnicos</a>
