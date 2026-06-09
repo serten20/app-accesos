@@ -46,6 +46,16 @@ REPORT_VARS = {
     "{tabla_empresas}": "Tabla HTML completa de todas las empresas",
 }
 
+# ── Variables para email de bienvenida (alta de técnico) ──────────────────────
+WELCOME_VARS = {
+    "{username}": "Nombre de usuario",
+    "{password}": "Contraseña temporal",
+    "{login_url}": "Enlace a la consola (login)",
+    "{cta_button}": "Botón 'Acceder a la consola'",
+    "{email}": "Email del técnico",
+    "{app_name}": "Nombre de la aplicación",
+}
+
 DEFAULT_REPORT_SUBJECT = "📊 Reporte de Accesos — {fecha} — Cumplimiento {compliance_pct}%"
 DEFAULT_REPORT_BODY = """\
 <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;background:#0f1117;color:#a6adbb;border-radius:12px;overflow:hidden">
@@ -297,6 +307,72 @@ def _render_template(tech_name: str, company, tc) -> tuple[str, str]:
         body_tpl = body_tpl.replace(k, v)
 
     return subject_tpl, body_tpl
+
+
+# ── Email de bienvenida (alta de técnico) ────────────────────────────────────
+DEFAULT_WELCOME_SUBJECT = "👋 Bienvenido a Access Manager — tus credenciales"
+DEFAULT_WELCOME_BODY = """\
+<!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f1f5f9" style="background-color:#f1f5f9">
+<tr><td align="center" style="padding:24px 10px">
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #e5e7eb">
+    <tr><td bgcolor="#1e1b4b" style="background-color:#1e1b4b;padding:22px 30px;font-family:Arial,Helvetica,sans-serif">
+      <span style="font-size:18px;font-weight:bold;color:#fde68a">&#128075; Te damos la bienvenida</span><br/>
+      <span style="font-size:12px;color:#c7d2fe">Access Manager &middot; Alta de usuario</span>
+    </td></tr>
+    <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:26px 30px 6px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1f2937;line-height:1.6">
+      Hola <b style="color:#111827">{username}</b>,<br/><br/>
+      Se te ha registrado en <b style="color:#111827">Access Manager</b>, la plataforma para dar seguimiento a la rotación de los accesos de los diferentes clientes. A partir de ahora recibirás un aviso cuando toque rotar la contraseña de alguno de tus clientes.
+    </td></tr>
+    <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:12px 30px 0">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f9fafb" style="background-color:#f9fafb;border:1px solid #e5e7eb">
+        <tr><td style="padding:10px 14px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;font-size:13px">Usuario</td><td align="right" style="padding:10px 14px;color:#111827;font-weight:bold;font-family:Arial,Helvetica,sans-serif;font-size:13px">{username}</td></tr>
+        <tr><td style="padding:10px 14px;color:#6b7280;border-top:1px solid #eef0f3;font-family:Arial,Helvetica,sans-serif;font-size:13px">Contraseña temporal</td><td align="right" style="padding:10px 14px;color:#111827;border-top:1px solid #eef0f3;font-family:'Courier New',monospace;font-weight:bold;font-size:13px">{password}</td></tr>
+      </table>
+      <p style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6b7280;margin:8px 0 0">&#128274; Por seguridad, deberás cambiar la contraseña en tu primer acceso.</p>
+    </td></tr>
+    <tr><td bgcolor="#ffffff" align="center" style="background-color:#ffffff;padding:20px 30px 6px">{cta_button}</td></tr>
+    <tr><td bgcolor="#ffffff" align="center" style="background-color:#ffffff;padding:0 30px 22px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6b7280">
+      o entra desde <a href="{login_url}" style="color:#2563eb;text-decoration:none">{login_url}</a>
+    </td></tr>
+    <tr><td bgcolor="#f1f5f9" align="center" style="background-color:#f1f5f9;padding:14px 30px;border-top:1px solid #e5e7eb;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#9ca3af">
+      Si no esperabas este correo, avisa a tu administrador &middot; No respondas a este mensaje
+    </td></tr>
+  </table>
+</td></tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->"""
+
+
+def welcome_mapping(username: str, password: str, email: str | None) -> dict:
+    """Variables del email de bienvenida, con datos reales del alta."""
+    from database import get_setting
+    base = (get_setting("app_base_url") or "").rstrip("/")
+    login_url = f"{base}/login" if base else "/login"
+    return {
+        "{username}": username,
+        "{password}": password,
+        "{email}": email or "—",
+        "{login_url}": login_url,
+        "{cta_button}": _cta_button(login_url, "&#128273; Acceder a la consola", color="#2563eb"),
+        "{app_name}": "Access Manager",
+    }
+
+
+def send_welcome_email(username: str, password: str, email: str | None) -> bool:
+    """Renderiza y envía el email de bienvenida al técnico. Requiere email."""
+    if not email:
+        return False
+    try:
+        from database import get_setting
+        subj = get_setting("welcome_subject") or DEFAULT_WELCOME_SUBJECT
+        body = get_setting("welcome_body") or DEFAULT_WELCOME_BODY
+    except Exception:
+        subj, body = DEFAULT_WELCOME_SUBJECT, DEFAULT_WELCOME_BODY
+    for k, v in welcome_mapping(username, password, email).items():
+        subj = subj.replace(k, v)
+        body = body.replace(k, v)
+    return _send_email(email, subj, body, kind="welcome")
 
 
 def _smtp_security() -> str:

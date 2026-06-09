@@ -376,6 +376,7 @@ async def list_users(request: Request):
         "request": request,
         "user": request.state.current_user,
         "technicians": technicians,
+        "welcome_default_on": (get_setting("welcome_default_on") or "off") == "on",
         "success": request.query_params.get("success"),
         "error": request.query_params.get("error"),
     })
@@ -389,6 +390,7 @@ async def create_user(
     email: str = Form(...),
     password: str = Form(...),
     must_change_password: str = Form(default="off"),
+    send_welcome: str = Form(default="off"),
 ):
     db = request.state.db
     existing = db.query(User).filter(User.username == username).first()
@@ -405,7 +407,16 @@ async def create_user(
     db.flush()
     audit_mod.log(db, f"Usuario creado: {username} (por admin)", user_id=request.state.current_user.id)
     db.commit()
-    return RedirectResponse("/admin/users?success=created", status_code=302)
+    # Email de bienvenida con credenciales (contraseña aún en claro aquí)
+    welcomed = False
+    if send_welcome == "on" and email:
+        try:
+            from scheduler import send_welcome_email
+            welcomed = send_welcome_email(username, password, email)
+        except Exception:
+            welcomed = False
+    flag = "created_welcome" if (send_welcome == "on" and welcomed) else ("created_welcome_fail" if send_welcome == "on" else "created")
+    return RedirectResponse(f"/admin/users?success={flag}", status_code=302)
 
 
 @router.post("/users/{user_id}/reset-password")
@@ -704,6 +715,7 @@ async def bulk_import_form(request: Request):
         "user": request.state.current_user,
         "preview": None,
         "mode": mode,
+        "welcome_default_on": (get_setting("welcome_default_on") or "off") == "on",
     })
 
 
@@ -835,6 +847,7 @@ async def bulk_import_preview(
         "import_token": import_token,
         "valid_count": sum(1 for r in rows if r["valid"]),
         "error_count": sum(1 for r in rows if not r["valid"]),
+        "welcome_default_on": (get_setting("welcome_default_on") or "off") == "on",
     })
 
 
@@ -870,6 +883,8 @@ async def bulk_import_confirm(request: Request):
         audit_mod.log(db, f"Importación masiva: {inserted} empresas importadas", user_id=request.state.current_user.id)
         return RedirectResponse(f"/admin/companies?imported={inserted}", status_code=302)
     else:
+        send_welcome = (form.get("send_welcome", "") == "on")
+        new_users = []   # (username, email, password) para la bienvenida
         for r in rows:
             username, email, password, must_change = r["col1"], r["col2"], r["col3"], r["col4"]
             if not db.query(User).filter(User.username == username).first():
@@ -880,10 +895,18 @@ async def bulk_import_confirm(request: Request):
                     must_change_password=(str(must_change).lower() in ("si", "sí", "yes", "1", "true")),
                 ))
                 inserted += 1
+                new_users.append((username, email, password))
         db.commit()
         _delete_import(import_token)
         audit_mod.log(db, f"Importación masiva: {inserted} usuarios importados", user_id=request.state.current_user.id)
-        return RedirectResponse(f"/admin/users?imported={inserted}", status_code=302)
+        welcomed = 0
+        if send_welcome and new_users:
+            from scheduler import send_welcome_email
+            for uname, mail, pwd in new_users:
+                if mail and send_welcome_email(uname, pwd, mail):
+                    welcomed += 1
+        suffix = f"&welcomed={welcomed}" if send_welcome else ""
+        return RedirectResponse(f"/admin/users?imported={inserted}{suffix}", status_code=302)
 
 
 # ── Settings — claves ────────────────────────────────────────────────────────
@@ -893,6 +916,7 @@ ALERT_KEYS  = ["alert_start_days", "alert_interval_hours", "email_subject", "ema
                "alert_escalation_enabled", "alert_escalation_count",
                "alert_escalation_admin_ids", "alert_escalation_extra_emails"]
 REPORT_KEYS = ["report_subject", "report_body", "report_day", "report_hour"]
+WELCOME_KEYS = ["welcome_subject", "welcome_body", "welcome_default_on"]
 GEN_KEYS    = ["timezone", "app_base_url", "confirm_token_hours"]
 
 
@@ -1212,6 +1236,81 @@ async def reports_config_post(
     audit_mod.log(db, f"Configuración de reportes a admins actualizada (día={report_day} hora={report_hour}h)",
                   user_id=request.state.current_user.id)
     return RedirectResponse("/admin/settings/reports-config?success=1", status_code=302)
+
+
+# ── Bienvenida — alta de técnicos ────────────────────────────────────────────
+
+@router.get("/settings/welcome", response_class=HTMLResponse)
+@require_viewer
+async def welcome_settings_get(request: Request):
+    from scheduler import DEFAULT_WELCOME_SUBJECT, DEFAULT_WELCOME_BODY, WELCOME_VARS, welcome_mapping
+    cfg = {k: get_setting(k) for k in WELCOME_KEYS}
+    if not cfg.get("welcome_subject"):
+        cfg["welcome_subject"] = DEFAULT_WELCOME_SUBJECT
+    if not cfg.get("welcome_body"):
+        cfg["welcome_body"] = DEFAULT_WELCOME_BODY
+    cfg.setdefault("welcome_default_on", "off")
+    preview_vars = welcome_mapping("tecnico_ejemplo", "Temp-1234 (ejemplo)", "tecnico@empresa.com")
+    return templates.TemplateResponse("admin_welcome.html", {
+        "request": request,
+        "user": request.state.current_user,
+        "cfg": cfg,
+        "welcome_vars": WELCOME_VARS,
+        "preview_vars": preview_vars,
+        "base_url_set": bool(get_setting("app_base_url")),
+        "success": request.query_params.get("success"),
+        "error": request.query_params.get("error"),
+    })
+
+
+@router.post("/settings/welcome")
+@require_admin
+async def welcome_settings_post(
+    request: Request,
+    welcome_subject: str = Form(""),
+    welcome_body: str = Form(""),
+    welcome_default_on: str = Form("off"),
+):
+    set_setting("welcome_subject", welcome_subject)
+    set_setting("welcome_body", welcome_body)
+    set_setting("welcome_default_on", "on" if welcome_default_on == "on" else "off")
+    audit_mod.log(request.state.db, "Plantilla de email de bienvenida actualizada",
+                  user_id=request.state.current_user.id)
+    return RedirectResponse("/admin/settings/welcome?success=1", status_code=302)
+
+
+@router.post("/settings/welcome/restore-default")
+@require_admin
+async def welcome_restore_default(request: Request):
+    from scheduler import DEFAULT_WELCOME_SUBJECT, DEFAULT_WELCOME_BODY
+    set_setting("welcome_subject", DEFAULT_WELCOME_SUBJECT)
+    set_setting("welcome_body", DEFAULT_WELCOME_BODY)
+    audit_mod.log(request.state.db, "Plantilla de bienvenida restaurada a la de por defecto",
+                  user_id=request.state.current_user.id)
+    return RedirectResponse("/admin/settings/welcome?success=restored", status_code=302)
+
+
+@router.post("/settings/welcome/test")
+@require_admin
+async def welcome_test_send(
+    request: Request,
+    welcome_subject: str = Form(None),
+    welcome_body: str = Form(None),
+):
+    """Envía la plantilla de bienvenida (con datos de ejemplo) al email del admin."""
+    from scheduler import welcome_mapping, _send_email, DEFAULT_WELCOME_SUBJECT, DEFAULT_WELCOME_BODY
+    me = request.state.current_user
+    if not me.email:
+        return RedirectResponse("/admin/settings/welcome?error=no_email", status_code=302)
+    subj = welcome_subject if welcome_subject is not None else (get_setting("welcome_subject") or DEFAULT_WELCOME_SUBJECT)
+    body = welcome_body if welcome_body is not None else (get_setting("welcome_body") or DEFAULT_WELCOME_BODY)
+    for k, v in welcome_mapping(me.username, "Temp-1234 (ejemplo)", me.email).items():
+        subj = subj.replace(k, v)
+        body = body.replace(k, v)
+    ok = _send_email(me.email, "[PRUEBA] " + subj, body, kind="welcome")
+    return RedirectResponse(
+        "/admin/settings/welcome?success=test" if ok else "/admin/settings/welcome?error=test_fail",
+        status_code=302)
 
 
 @router.get("/settings/general", response_class=HTMLResponse)
@@ -1735,7 +1834,7 @@ async def notifications_mark_read(request: Request):
 
 EMAIL_KIND_LABELS = {
     "alert": "Alerta técnico", "report": "Reporte", "escalation": "Escalado",
-    "db_alert": "Alerta BD", "test": "Prueba", "other": "Otro",
+    "db_alert": "Alerta BD", "test": "Prueba", "welcome": "Bienvenida", "other": "Otro",
 }
 
 

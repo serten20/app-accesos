@@ -9,9 +9,13 @@
 {% endif %}
 {% if request.query_params.get('success') == 'created' %}
 <div class="alert alert-success mb-4 text-sm">✓ Técnico creado correctamente.</div>
+{% elif request.query_params.get('success') == 'created_welcome' %}
+<div class="alert alert-success mb-4 text-sm">✓ Técnico creado y email de bienvenida enviado.</div>
+{% elif request.query_params.get('success') == 'created_welcome_fail' %}
+<div class="alert alert-warning mb-4 text-sm">✓ Técnico creado, pero <b>no se pudo enviar</b> el email de bienvenida (revisa SMTP y la URL pública). El motivo está en el <a href="/admin/emails" class="underline">Registro de Emails</a>.</div>
 {% endif %}
 {% if request.query_params.get('imported') %}
-<div class="alert alert-success mb-4 text-sm">✓ Se importaron {{ request.query_params.get('imported') }} usuario(s) correctamente.</div>
+<div class="alert alert-success mb-4 text-sm">✓ Se importaron {{ request.query_params.get('imported') }} usuario(s) correctamente.{% if request.query_params.get('welcomed') %} Emails de bienvenida enviados: {{ request.query_params.get('welcomed') }}.{% endif %}</div>
 {% endif %}
 {% if request.query_params.get('success') == 'archived' %}
 <div class="alert alert-warning mb-4 text-sm">📦 Técnico archivado. Puedes restaurarlo desde la <a href="/admin/trash" class="underline">Papelera</a>.</div>
@@ -51,6 +55,12 @@
           <label class="label cursor-pointer justify-start gap-3 py-2">
             <input type="checkbox" name="must_change_password" class="checkbox checkbox-warning checkbox-sm" checked />
             <span class="label-text text-xs">Forzar cambio en próximo login</span>
+          </label>
+        </div>
+        <div class="form-control">
+          <label class="label cursor-pointer justify-start gap-3 py-2">
+            <input type="checkbox" name="send_welcome" class="checkbox checkbox-info checkbox-sm" {% if welcome_default_on %}checked{% endif %} />
+            <span class="label-text text-xs">Enviar email de bienvenida (usuario, contraseña y enlace)</span>
           </label>
         </div>
         <button type="submit" class="btn btn-primary btn-sm mt-1">+ Crear Técnico</button>

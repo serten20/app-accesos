@@ -139,6 +139,12 @@
   <form method="post" action="/admin/bulk-import/confirm">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
     <input type="hidden" name="import_token" value="{{ import_token }}" />
+    {% if current_mode == 'users' %}
+    <label class="label cursor-pointer justify-start gap-3 py-1 mb-2">
+      <input type="checkbox" name="send_welcome" class="checkbox checkbox-info checkbox-sm" {% if welcome_default_on %}checked{% endif %} />
+      <span class="label-text text-xs">Enviar email de bienvenida a los técnicos importados (usuario, contraseña y enlace)</span>
+    </label>
+    {% endif %}
     <div class="flex gap-3 items-center">
       <button type="submit" class="btn btn-success btn-sm">
         ✓ Importar {{ valid_count }}
