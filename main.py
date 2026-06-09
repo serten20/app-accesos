@@ -123,6 +123,15 @@ async def root(request: Request):
     return RedirectResponse("/dashboard", status_code=302)
 
 
+def _login_context(request, **extra):
+    """Contexto base para login.html. Incluye el nombre de empresa configurable
+    (Configuración → General), vacío por defecto."""
+    from database import get_setting
+    ctx = {"request": request, "error": None, "company_name": get_setting("company_name") or ""}
+    ctx.update(extra)
+    return ctx
+
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_get(request: Request):
     db = SessionLocal()
@@ -130,7 +139,7 @@ async def login_get(request: Request):
     db.close()
     if user:
         return RedirectResponse("/", status_code=302)
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return templates.TemplateResponse("login.html", _login_context(request))
 
 
 @app.post("/login", response_class=HTMLResponse)
@@ -145,27 +154,24 @@ async def login_post(
         # Anti fuerza bruta: bloquear tras demasiados intentos fallidos desde la IP
         if too_many_login_attempts(db, ip):
             audit_mod.log(db, f"Login bloqueado por fuerza bruta — IP {ip} (usuario: '{username}')", level="warning", ip=ip)
-            return templates.TemplateResponse("login.html", {
-                "request": request,
-                "error": "⛔ Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo.",
-            }, status_code=429)
+            return templates.TemplateResponse("login.html", _login_context(
+                request, error="⛔ Demasiados intentos fallidos. Espera 15 minutos e inténtalo de nuevo.",
+            ), status_code=429)
 
         user = db.query(User).filter(User.username == username).first()
 
         if not user or not verify_password(password, user.hashed_password):
             audit_mod.log(db, f"Login fallido — usuario: '{username}'", level="warning", ip=ip)
-            return templates.TemplateResponse("login.html", {
-                "request": request,
-                "error": "Usuario o contraseña incorrectos",
-            }, status_code=401)
+            return templates.TemplateResponse("login.html", _login_context(
+                request, error="Usuario o contraseña incorrectos",
+            ), status_code=401)
 
         if not user.is_active:
             audit_mod.log(db, f"Login denegado — cuenta deshabilitada: {user.username}", user_id=user.id, level="warning", ip=ip)
-            return templates.TemplateResponse("login.html", {
-                "request": request,
-                "error": "⛔ Tu cuenta está deshabilitada. Contacta con el administrador.",
-                "error_type": "disabled",
-            })
+            return templates.TemplateResponse("login.html", _login_context(
+                request, error="⛔ Tu cuenta está deshabilitada. Contacta con el administrador.",
+                error_type="disabled",
+            ))
 
         audit_mod.log(db, f"Login correcto — {user.username} ({user.role})", user_id=user.id, level="info", ip=ip)
 
