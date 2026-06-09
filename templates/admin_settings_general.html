@@ -89,8 +89,8 @@
         <div class="form-control">
           <label class="label py-1"><span class="label-text text-xs">URL pública de la aplicación</span></label>
           <input type="url" name="app_base_url" value="{{ cfg.app_base_url or '' }}"
-                 class="input input-bordered input-sm bg-base-200" placeholder="https://accesos.tuempresa.com" />
-          <span class="label-text-alt text-xs text-base-content/30 mt-1">Sin barra final. Ej.: https://accesos.tuempresa.com</span>
+                 class="input input-bordered input-sm bg-base-200" placeholder="http://192.168.1.50:8000" />
+          <span class="label-text-alt text-xs text-base-content/30 mt-1">Sin barra final. <b>Incluye el puerto</b> si no usas un proxy inverso (la app escucha en el 8000). Ej.: <span class="font-mono">http://192.168.1.50:8000</span> o <span class="font-mono">https://accesos.tuempresa.com:8000</span></span>
         </div>
         <div class="form-control">
           <label class="label py-1"><span class="label-text text-xs">Caducidad del enlace de confirmación rápida (horas)</span></label>

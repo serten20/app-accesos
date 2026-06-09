@@ -16,6 +16,10 @@
        class="tab {% if current_mode == 'users' %}tab-active{% endif %}">
       👤 Usuarios / Técnicos
     </a>
+    <a href="/admin/bulk-import?mode=assignments"
+       class="tab {% if current_mode == 'assignments' %}tab-active{% endif %}">
+      🔗 Asignaciones
+    </a>
   </div>
 
   {% if current_mode == 'companies' %}
@@ -35,6 +39,23 @@
     </div>
   </div>
 
+  {% elif current_mode == 'assignments' %}
+  <!-- FORMAT HINT ASSIGNMENTS -->
+  <div class="alert bg-base-100 border border-info/20 text-sm mb-5 gap-3">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-info shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <div class="flex-1">
+      <p class="font-semibold">Formato CSV — Asignaciones técnico↔empresa</p>
+      <code class="text-xs text-info/80 block mt-1">tecnico,empresa,last_changed</code>
+      <p class="text-xs text-base-content/40 mt-1">Obligatorios: <b>tecnico</b> (username existente), <b>empresa</b> (nombre existente) · Opcional: <b>last_changed</b> (fecha del último cambio; vacío = hoy; AAAA-MM-DD o DD/MM/AAAA). Las parejas ya existentes se omiten.</p>
+    </div>
+    <div class="flex gap-2 shrink-0">
+      <a href="/admin/bulk-import/sample/assignments/csv" class="btn btn-xs btn-outline btn-info">⬇ .CSV</a>
+      <a href="/admin/bulk-import/sample/assignments/txt" class="btn btn-xs btn-outline">⬇ .TXT</a>
+    </div>
+  </div>
+
   {% else %}
   <!-- FORMAT HINT USERS -->
   <div class="alert bg-base-100 border border-secondary/20 text-sm mb-5 gap-3">
@@ -44,7 +65,7 @@
     <div class="flex-1">
       <p class="font-semibold">Formato CSV — Usuarios / Técnicos</p>
       <code class="text-xs text-secondary/80 block mt-1">username,email,password,must_change_password</code>
-      <p class="text-xs text-base-content/40 mt-1">Obligatorios: <b>username</b>, <b>email</b>, <b>password</b> · Opcional: must_change_password (si/no)</p>
+      <p class="text-xs text-base-content/40 mt-1">Obligatorios: <b>username</b>, <b>email</b> · Opcionales: <b>password</b> (si se deja <b>vacía</b>, se genera una temporal y se fuerza el cambio en el primer login — ideal para migración), must_change_password (si/no)</p>
     </div>
     <div class="flex gap-2 shrink-0">
       <a href="/admin/bulk-import/sample/users/csv" class="btn btn-xs btn-outline btn-secondary">⬇ .CSV</a>
@@ -80,7 +101,7 @@
       <div class="flex items-center justify-between px-5 py-4 border-b border-base-200">
         <div>
           <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Previsualización
-            — {% if current_mode == 'users' %}Usuarios{% else %}Empresas{% endif %}
+            — {% if current_mode == 'users' %}Usuarios{% elif current_mode == 'assignments' %}Asignaciones{% else %}Empresas{% endif %}
           </h2>
           <p class="text-xs text-base-content/40 mt-0.5">
             <span class="text-success font-bold">{{ valid_count }} válidas</span>
@@ -97,6 +118,8 @@
               <th>#</th>
               {% if current_mode == 'companies' %}
               <th>Nombre</th><th>URL VPN</th><th>Doc.</th><th>Días Exp.</th><th>Inicio</th>
+              {% elif current_mode == 'assignments' %}
+              <th>Técnico</th><th>Empresa</th><th>Inicio</th>
               {% else %}
               <th>Username</th><th>Email</th><th>Contraseña</th><th>Cambio Login</th>
               {% endif %}
@@ -107,16 +130,21 @@
             {% for row in preview %}
             <tr class="{% if not row.valid %}bg-error/5{% endif %} hover:bg-base-200/40">
               <td class="text-xs text-base-content/40">{{ row.line }}</td>
+              {% if current_mode == 'companies' %}
               <td class="font-medium text-sm {% if not row.valid %}text-error/80{% endif %}">{{ row.col1 or '—' }}</td>
               <td class="text-xs text-base-content/50 max-w-[160px] truncate">{{ row.col2 or '—' }}</td>
-              <td class="text-xs">
-                {% if current_mode == 'companies' %}{{ row.col3 }}{% else %}
-                  <span class="text-base-content/30">••••</span>
-                {% endif %}
-              </td>
+              <td class="text-xs">{{ row.col3 or '—' }}</td>
               <td class="text-xs text-base-content/40">{{ row.col4 or '—' }}</td>
-              {% if current_mode == 'companies' %}
               <td class="text-xs text-base-content/40">{{ row.col6 or 'hoy' }}</td>
+              {% elif current_mode == 'assignments' %}
+              <td class="font-medium text-sm {% if not row.valid %}text-error/80{% endif %}">{{ row.col1 or '—' }}</td>
+              <td class="text-xs text-base-content/60">{{ row.col2 or '—' }}</td>
+              <td class="text-xs text-base-content/40">{{ row.col3 or 'hoy' }}</td>
+              {% else %}
+              <td class="font-medium text-sm {% if not row.valid %}text-error/80{% endif %}">{{ row.col1 or '—' }}</td>
+              <td class="text-xs text-base-content/50 max-w-[160px] truncate">{{ row.col2 or '—' }}</td>
+              <td class="text-xs">{% if row.col3 %}<span class="text-base-content/30">••••</span>{% else %}<span class="text-info/60 italic">auto</span>{% endif %}</td>
+              <td class="text-xs text-base-content/40">{{ row.col4 or '—' }}</td>
               {% endif %}
               <td>
                 {% if row.valid %}
@@ -148,7 +176,7 @@
     <div class="flex gap-3 items-center">
       <button type="submit" class="btn btn-success btn-sm">
         ✓ Importar {{ valid_count }}
-        {% if current_mode == 'users' %}usuario(s){% else %}empresa(s){% endif %}
+        {% if current_mode == 'users' %}usuario(s){% elif current_mode == 'assignments' %}asignación(es){% else %}empresa(s){% endif %}
       </button>
       <a href="/admin/bulk-import?mode={{ current_mode }}" class="btn btn-sm btn-ghost text-base-content/50">Cancelar</a>
     </div>
