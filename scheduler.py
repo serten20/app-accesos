@@ -616,6 +616,12 @@ def job_check_alerts():
     esc_enabled, esc_threshold, esc_admin_ids, esc_extra_emails = _get_escalation_cfg()
     db = SessionLocal()
     try:
+        # (A) Si SMTP no está configurado, no barremos: evita inundar email_logs
+        # con fallos "SMTP no configurado" en cada vuelta horaria.
+        if not _get_smtp_cfg()[0]:
+            logger.warning("job_check_alerts: SMTP sin configurar; se omite el barrido de alertas")
+            return
+
         # Destinatarios del escalado: admins elegidos ∪ emails externos.
         # Si no se ha configurado nada → todos los admins activos (retrocompat).
         escalation_recipients = []
@@ -653,30 +659,33 @@ def job_check_alerts():
                 continue
 
             subject, body = _render_template(tech.username, company, tc)
-            if _send_email(tech.email, subject, body, kind="alert"):
-                sent_total += 1
-                tc.alert_last_sent = datetime.utcnow()
-                tc.alert_count = (tc.alert_count or 0) + 1
+            _send_email(tech.email, subject, body, kind="alert")
+            # (A) Avanzamos el estado del aviso AUNQUE la entrega inmediata falle:
+            # la entrega la reintenta job_retry_failed_emails y la deduplica al
+            # recuperar SMTP. Así no se re-encola la misma alerta en cada vuelta.
+            sent_total += 1
+            tc.alert_last_sent = datetime.utcnow()
+            tc.alert_count = (tc.alert_count or 0) + 1
 
-                # Escalado: tras N avisos sin confirmar, avisar a destinatarios (una vez)
-                if (esc_enabled and escalation_recipients
-                        and tc.alert_count >= esc_threshold
-                        and tc.escalated_at is None):
-                    if _send_escalation(tc, tech, company, escalation_recipients):
-                        tc.escalated_at = datetime.utcnow()
-                        escalated_total += 1
-                        # Queda registrado como warning → visible en la campana
-                        audit_mod.log(
-                            db,
-                            f"⛔ Escalado: {company.name} sin rotar por {tech.username} "
-                            f"({tc.alert_count} avisos sin confirmar)",
-                            company_id=company.id,
-                            level="warning",
-                        )
+            # Escalado: tras N avisos sin confirmar, avisar a destinatarios (una vez)
+            if (esc_enabled and escalation_recipients
+                    and tc.alert_count >= esc_threshold
+                    and tc.escalated_at is None):
+                _send_escalation(tc, tech, company, escalation_recipients)
+                tc.escalated_at = datetime.utcnow()
+                escalated_total += 1
+                # Queda registrado como warning → visible en la campana
+                audit_mod.log(
+                    db,
+                    f"⛔ Escalado: {company.name} sin rotar por {tech.username} "
+                    f"({tc.alert_count} avisos sin confirmar)",
+                    company_id=company.id,
+                    level="warning",
+                )
 
         if sent_total:
             db.commit()
-            logger.info("Alertas enviadas: %d (escaladas: %d)", sent_total, escalated_total)
+            logger.info("Alertas procesadas: %d (escaladas: %d)", sent_total, escalated_total)
     except Exception as e:
         logger.error("Error en job_check_alerts: %s", e)
     finally:
@@ -958,21 +967,102 @@ def job_daily_snapshot():
 
 MAX_EMAIL_ATTEMPTS = 5
 EMAIL_RETENTION_DAYS = 30
+# Estados terminales que se purgan por antigüedad
+EMAIL_TERMINAL_STATES = ["sent", "superseded", "abandoned"]
+# kinds que NO deben generar aviso a admins (evita bucles: el propio aviso es email)
+EMAIL_NOTIFY_KINDS = ("smtp_alert", "db_alert")
+# Como mucho un email-resumen de problemas SMTP cada N horas
+SMTP_PROBLEM_THROTTLE_HOURS = 12
+
+
+def _notify_admins_smtp_problem(abandoned_count: int, sample_errors: list):
+    """Avisa a los admins de que hay correos sin entregar (tras agotar reintentos).
+    1) Deja SIEMPRE constancia en auditoría (visible en la campana aunque SMTP falle).
+    2) Intenta un email-resumen a los admins, como mucho una vez cada
+       SMTP_PROBLEM_THROTTLE_HOURS, con kind propio que no re-dispara avisos."""
+    from datetime import timedelta
+    from database import SessionLocal, get_setting, set_setting
+    from models import User
+    import audit as audit_mod
+    db = SessionLocal()
+    try:
+        audit_mod.log(
+            db,
+            f"⚠️ {abandoned_count} email(s) no se pudieron entregar tras "
+            f"{MAX_EMAIL_ATTEMPTS} intentos. Revisa la configuración SMTP.",
+            level="error",
+        )
+        db.commit()
+
+        # Throttle del email-resumen
+        now = datetime.utcnow()
+        last = get_setting("smtp_problem_notified_at")
+        if last:
+            try:
+                if (now - datetime.fromisoformat(last)) < timedelta(hours=SMTP_PROBLEM_THROTTLE_HOURS):
+                    return
+            except (ValueError, TypeError):
+                pass
+
+        recipients = [a.email.strip() for a in db.query(User).filter(
+            User.role == "admin", User.is_active == True, User.email != None,
+        ).all() if a.email]
+        if not recipients:
+            return
+        # Marcamos el timestamp ANTES de enviar para no reintentar el aviso en bucle
+        set_setting("smtp_problem_notified_at", now.isoformat())
+        errs = "".join(f"<li>{e}</li>" for e in sample_errors[:5]) or "<li>(sin detalle)</li>"
+        subject = f"⚠️ Problema de envío de emails — {abandoned_count} no entregados"
+        body = (
+            f"<p>El sistema no ha podido entregar <b>{abandoned_count}</b> correo(s) "
+            f"tras {MAX_EMAIL_ATTEMPTS} intentos y los ha marcado como <b>abandonados</b>.</p>"
+            f"<p>Últimos errores:</p><ul>{errs}</ul>"
+            f"<p>Revisa la configuración SMTP en Configuración → SMTP. "
+            f"Mientras tanto, las alertas a técnicos podrían no estar llegando.</p>"
+        )
+        for to in recipients:
+            _send_email(to, subject, body, kind="smtp_alert")
+    except Exception as e:
+        logger.error("No se pudo notificar el problema SMTP: %s", e)
+        db.rollback()
+    finally:
+        db.close()
 
 
 def job_retry_failed_emails():
-    """Reintenta los emails con estado 'failed' (hasta MAX_EMAIL_ATTEMPTS) y purga
-    los enviados correctamente con más de EMAIL_RETENTION_DAYS días de antigüedad."""
+    """Reintenta los emails 'failed' (hasta MAX_EMAIL_ATTEMPTS). Al agotarlos los
+    marca 'abandoned' y avisa a los admins. Purga los estados terminales con más
+    de EMAIL_RETENTION_DAYS días."""
     from datetime import timedelta
+    from collections import defaultdict
     from database import SessionLocal
     from models import EmailLog
     db = SessionLocal()
     try:
-        pending = db.query(EmailLog).filter(
+        failed = db.query(EmailLog).filter(
             EmailLog.status == "failed",
             EmailLog.attempts < MAX_EMAIL_ATTEMPTS,
         ).all()
-        retried = recovered = 0
+
+        # (B) Deduplicar alertas/escalados acumulados durante una caída de SMTP:
+        # por (destinatario, asunto) solo se entrega la MÁS RECIENTE; las demás
+        # se marcan como "superseded" (sustituidas) y no se reintentan.
+        superseded = 0
+        groups = defaultdict(list)
+        for row in failed:
+            if row.kind in ("alert", "escalation"):
+                groups[(row.to_address, row.subject)].append(row)
+        for items in groups.values():
+            if len(items) > 1:
+                items.sort(key=lambda x: (x.created_at or datetime.min), reverse=True)
+                for old in items[1:]:
+                    old.status = "superseded"
+                    old.body = None
+                    superseded += 1
+
+        pending = [r for r in failed if r.status == "failed"]
+        retried = recovered = abandoned = 0
+        abandoned_errors = []
         for row in pending:
             ok, error = _smtp_send(row.to_address, row.subject or "", row.body or "")
             row.attempts = (row.attempts or 0) + 1
@@ -986,17 +1076,28 @@ def job_retry_failed_emails():
                 recovered += 1
             else:
                 row.error = error
+                # (D) Agotados los intentos → estado terminal 'abandoned'
+                if row.attempts >= MAX_EMAIL_ATTEMPTS:
+                    row.status = "abandoned"
+                    if row.kind not in EMAIL_NOTIFY_KINDS:
+                        abandoned += 1
+                        if error:
+                            abandoned_errors.append(error)
 
         cutoff = datetime.utcnow() - timedelta(days=EMAIL_RETENTION_DAYS)
         purged = db.query(EmailLog).filter(
-            EmailLog.status == "sent",
+            EmailLog.status.in_(EMAIL_TERMINAL_STATES),
             EmailLog.created_at < cutoff,
         ).delete(synchronize_session=False)
 
         db.commit()
-        if retried or purged:
-            logger.info("Reintento de emails: %d reintentados, %d recuperados, %d purgados",
-                        retried, recovered, purged)
+        if retried or purged or superseded:
+            logger.info("Reintento de emails: %d reintentados, %d recuperados, %d sustituidos, %d abandonados, %d purgados",
+                        retried, recovered, superseded, abandoned, purged)
+
+        # (D) Aviso a admins si hay correos definitivamente no entregados
+        if abandoned > 0:
+            _notify_admins_smtp_problem(abandoned, abandoned_errors)
     except Exception as e:
         logger.error("Error en job_retry_failed_emails: %s", e)
         db.rollback()
@@ -1008,12 +1109,14 @@ def start_scheduler():
     from apscheduler.triggers.cron import CronTrigger
     scheduler = BackgroundScheduler()
 
-    # Comprobar alertas cada hora
+    # Comprobar alertas cada hora.
+    # (C) Sin next_run_time inmediato: así reiniciar la app NO dispara un barrido
+    # de alertas en cada arranque (era una fuente de duplicados en desarrollo).
+    # La primera ejecución será ~1h tras el arranque.
     scheduler.add_job(
         job_check_alerts,
         IntervalTrigger(hours=1),
         id="check_alerts",
-        next_run_time=datetime.utcnow(),
     )
 
     # Reporte: comprobar cada hora si toca enviar (la config de día/hora se lee en runtime)

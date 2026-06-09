@@ -17,7 +17,11 @@
   .pill-sent   { background:rgba(34,197,94,0.12); color:#4ade80; border:1px solid rgba(34,197,94,0.2); }
   .pill-failed { background:rgba(239,68,68,0.1); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
   .pill-pending{ background:rgba(234,179,8,0.12); color:#facc15; border:1px solid rgba(234,179,8,0.2); }
+  .pill-super  { background:rgba(148,163,184,0.1); color:#94a3b8; border:1px solid rgba(148,163,184,0.2); }
+  .pill-aband  { background:rgba(120,53,15,0.25); color:#fb923c; border:1px solid rgba(234,88,12,0.35); }
   .pill-kind   { background:rgba(99,102,241,0.1); color:#a5b4fc; border:1px solid rgba(99,102,241,0.2); }
+  .btn-purge   { display:inline-flex; align-items:center; gap:0.4rem; padding:0.45rem 0.9rem; border-radius:0.5rem; font-size:0.72rem; font-weight:600; cursor:pointer; background:rgba(148,163,184,0.08); border:1px solid rgba(148,163,184,0.22); color:#94a3b8; transition:all 0.15s; }
+  .btn-purge:hover { background:rgba(148,163,184,0.16); }
   .mono { font-family:monospace; }
   .field-select { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:0.5rem; padding:0.35rem 0.7rem; font-size:0.78rem; color:rgba(166,173,187,0.85); outline:none; cursor:pointer; }
   .field-select option { background:#1e1f2e; color:#d1d5db; }
@@ -35,6 +39,10 @@
 {% elif success == 'retry_all' %}
 <div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);color:#a5b4fc">
   ✓ Reintento de todos los fallidos ejecutado. Revisa los estados actualizados abajo.
+</div>
+{% elif success == 'purged' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.25);color:#94a3b8">
+  ✓ {{ request.query_params.get('n', '0') }} registro(s) sustituidos/abandonados eliminados.
 </div>
 {% elif error == 'retry_failed' %}
 <div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171">
@@ -58,6 +66,8 @@
         <option value="sent"    {% if f_status=='sent' %}selected{% endif %}>Enviados</option>
         <option value="failed"  {% if f_status=='failed' %}selected{% endif %}>Fallidos</option>
         <option value="pending" {% if f_status=='pending' %}selected{% endif %}>Pendientes</option>
+        <option value="superseded" {% if f_status=='superseded' %}selected{% endif %}>Sustituidas</option>
+        <option value="abandoned" {% if f_status=='abandoned' %}selected{% endif %}>Abandonadas</option>
       </select>
       <select name="kind" class="field-select" onchange="this.form.submit()">
         <option value="">Todos los tipos</option>
@@ -68,15 +78,27 @@
       {% if f_status or f_kind %}<a href="/admin/emails" class="text-xs text-base-content/40 hover:text-base-content/70 ml-1">limpiar</a>{% endif %}
     </form>
 
-    {% if failed_total > 0 %}
-    <form method="post" action="/admin/emails/retry-failed">
-      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
-      <button type="submit" class="btn-retry-all">
-        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-        Reintentar todos los fallidos ({{ failed_total }})
-      </button>
-    </form>
-    {% endif %}
+    <div class="flex items-center gap-2 flex-wrap">
+      {% if resolved_total > 0 %}
+      <form method="post" action="/admin/emails/purge-resolved"
+            onsubmit="return confirm('¿Eliminar {{ resolved_total }} registro(s) sustituidos y abandonados? No afecta a los enviados ni a los pendientes.')">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+        <button type="submit" class="btn-purge" title="Elimina los registros sustituidos y abandonados">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          Limpiar resueltos ({{ resolved_total }})
+        </button>
+      </form>
+      {% endif %}
+      {% if failed_total > 0 %}
+      <form method="post" action="/admin/emails/retry-failed">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+        <button type="submit" class="btn-retry-all">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Reintentar todos los fallidos ({{ failed_total }})
+        </button>
+      </form>
+      {% endif %}
+    </div>
   </div>
 </div>
 
@@ -102,18 +124,20 @@
         <td class="text-base-content/80">{{ r.to_address }}</td>
         <td>
           {{ r.subject or '—' }}
-          {% if r.status == 'failed' and r.error %}<div class="err-text">⚠ {{ r.error }}</div>{% endif %}
+          {% if r.status in ('failed', 'abandoned') and r.error %}<div class="err-text">⚠ {{ r.error }}</div>{% endif %}
         </td>
         <td style="text-align:center" class="mono">
-          {{ r.attempts }}{% if r.status == 'failed' %}<span class="text-base-content/25">/{{ max_attempts }}</span>{% endif %}
+          {{ r.attempts }}{% if r.status in ('failed', 'abandoned') %}<span class="text-base-content/25">/{{ max_attempts }}</span>{% endif %}
         </td>
         <td>
           {% if r.status == 'sent' %}<span class="pill pill-sent">ENVIADO</span>
           {% elif r.status == 'failed' %}<span class="pill pill-failed">FALLIDO</span>
+          {% elif r.status == 'superseded' %}<span class="pill pill-super" title="Sustituida por un aviso más reciente; no se reenvía">SUSTITUIDA</span>
+          {% elif r.status == 'abandoned' %}<span class="pill pill-aband" title="No se pudo entregar tras {{ max_attempts }} intentos. Puedes reintentar manualmente.">ABANDONADA</span>
           {% else %}<span class="pill pill-pending">PENDIENTE</span>{% endif %}
         </td>
         <td style="text-align:right">
-          {% if r.status == 'failed' %}
+          {% if r.status in ('failed', 'abandoned') %}
           <form method="post" action="/admin/emails/{{ r.id }}/retry" style="display:inline">
             <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
             <button type="submit" class="btn-retry" title="Reintentar este envío ahora">
@@ -132,5 +156,5 @@
     </tbody>
   </table>
 </div>
-<p class="text-xs text-base-content/25 mt-3">Se muestran los 300 envíos más recientes. Los fallidos se reintentan automáticamente cada hora (hasta {{ max_attempts }} intentos); los enviados se purgan a los 30 días.</p>
+<p class="text-xs text-base-content/25 mt-3">Se muestran los 300 envíos más recientes. Los fallidos se reintentan automáticamente cada hora (hasta {{ max_attempts }} intentos); los enviados se purgan a los 30 días. Si se acumulan varios avisos iguales para el mismo destinatario (p. ej. durante una caída de SMTP), al recuperarse solo se entrega el <b>más reciente</b> y los anteriores quedan como <b>sustituidos</b>.</p>
 {% endblock %}
