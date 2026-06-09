@@ -8,16 +8,34 @@ Construida con **FastAPI + SQLite**, pensada para desplegarse en **Docker** en m
 
 ## ✨ Funcionalidades
 
+### Gestión de accesos
 - **Empresas/clientes** con días de expiración, VPN, documentación y **fecha de inicio** configurable.
-- **Técnicos** asignados a empresas (cada técnico con su propio contador de rotación).
+- **Técnicos** asignados a empresas (cada técnico con **su propio contador de rotación**: la ficha del técnico refleja su estado individual, no el global de la empresa).
 - **Roles:** administrador, técnico, **auditor** (solo lectura) y **doble rol** (admin que también es técnico). Conversión técnico ↔ admin en ambos sentidos.
+- **Semáforo de estado con umbrales configurables** (crítico / atención, por defecto 2 y 7 días) desde *Configuración → General*; el cambio se propaga a todos los paneles y portales al instante.
+
+### Alertas y notificaciones
 - **Alertas por email** a los técnicos cuando un acceso está próximo a expirar, con **confirmación en 1 clic** desde el propio correo (magic link).
-- **Escalado automático** a administradores (o emails externos) si el técnico no confirma.
+- **Escalado automático** a administradores (o emails externos) si el técnico no confirma tras N avisos.
+- **Email de bienvenida** opcional al crear técnicos (usuario, contraseña temporal y enlace de acceso).
+- **Plantillas de email editables** (alerta, reporte, bienvenida) y **compatibles con Outlook de escritorio** (maquetación a prueba de su motor de render).
+
+### Reportes y analítica
 - **Reportes periódicos** a administradores + centro de reportes: salud global, cuentas en riesgo, **ranking de puntualidad**, **matriz de acceso** y **calendario + heatmap** de vencimientos.
 - **Dashboard** con % de cumplimiento, gráficas de tendencia (Chart.js) y próximos vencimientos.
-- **Registro de emails** con reintentos automáticos, **papelera** (archivado lógico recuperable) y **auditoría** completa.
-- **Base de datos:** monitorización en vivo, VACUUM, **backups** locales y **externos por SFTP/FTP**, purga configurable.
-- **Importación masiva** por CSV (empresas y técnicos).
+- **Vistas imprimibles / exportables a PDF** desde el navegador.
+- **Historial de rotaciones** con **filtros** (rango de fechas, presets, técnico, empresa), **exportación a CSV/TXT** y enlaces directos a las fichas.
+
+### Datos, importación y migración
+- **Importación masiva** por CSV/TXT: empresas, técnicos y **asignaciones técnico↔empresa**.
+- **Exportación "para migración"** que devuelve empresas, técnicos y asignaciones en el **mismo formato de importación** (round-trip), ideal para mover o reconstruir la configuración.
+- **Registro de emails** con reintentos automáticos, **deduplicación** de avisos acumulados (solo se entrega el más reciente al recuperar SMTP), estado **abandonado** tras agotar intentos y **aviso a administradores** si el correo falla.
+- **Papelera** (archivado lógico recuperable) y **auditoría** completa.
+- **Base de datos:** monitorización en vivo, VACUUM, **backups** locales (con **descarga** directa) y **externos por SFTP/FTP** (con prueba de conexión), purga configurable.
+
+### Personalización y ayuda
+- **Nombre de la empresa configurable** (aparece en el pie del login; vacío por defecto).
+- **Zona horaria** configurable.
 - **Wizard de bienvenida** y tooltips de ayuda contextuales.
 
 ### Seguridad
@@ -73,7 +91,7 @@ En el primer arranque se crea automáticamente una base de datos vacía y un **a
 
 La mayoría de ajustes (SMTP, alertas, reportes, copia externa, URL pública, zona horaria…) se gestionan **desde la interfaz**, en **Configuración**.
 
-> Para que los **enlaces de los emails** funcionen, configura la **URL pública** en *Configuración → General* (p. ej. `https://accesos.tuempresa.com`).
+> Para que los **enlaces de los emails** funcionen, configura la **URL pública** en *Configuración → General*, **incluyendo el puerto** si no usas un proxy inverso (la app escucha en el 8000) — p. ej. `http://192.168.1.50:8000` o `https://accesos.tuempresa.com`.
 
 ---
 
@@ -89,6 +107,7 @@ La mayoría de ajustes (SMTP, alertas, reportes, copia externa, URL pública, zo
 ├── security.py          # Middleware CSRF, anti fuerza bruta
 ├── scheduler.py         # Jobs (alertas, reportes, salud, emails) + envío SMTP
 ├── compliance.py        # Cálculo de cumplimiento
+├── thresholds.py        # Umbrales de estado configurables (con caché)
 ├── db_admin.py          # Monitorización y mantenimiento de la BD
 ├── remote_backup.py     # Copia externa SFTP/FTP
 ├── trash.py             # Papelera (archivado lógico)
@@ -108,15 +127,21 @@ La mayoría de ajustes (SMTP, alertas, reportes, copia externa, URL pública, zo
 
 - **Último cambio / fecha de inicio:** fecha ancla desde la que se cuenta la expiración de cada empresa. Vacía = hoy; puede ser pasada o futura.
 - **Días de expiración:** cada cuántos días debe rotarse la contraseña. *Vencimiento = fecha de inicio + días de expiración.*
-- **Semáforo:** `CRÍTICO` ≤ 2 días · `AVISO` ≤ 7 días · `OK` > 7 días.
+- **Semáforo:** `CRÍTICO` / `AVISO` / `OK` según los días restantes. Los umbrales son **configurables** en *Configuración → General* (por defecto `CRÍTICO ≤ 2` y `AVISO ≤ 7` días; el resto es `OK`).
 - **Cumplimiento (%):** solo penalizan los elementos **críticos**. Unidades = empresas + técnicos con asignaciones.
-- **Rotación:** cuando un técnico confirma el cambio (en la app o por el enlace del email), su contador se reinicia y dejan de enviarse avisos.
+- **Rotación:** cuando un técnico confirma el cambio (en la app o por el enlace del email), **su** contador se reinicia y dejan de enviarse avisos (estado por técnico, independiente del resto).
 
 ---
 
 ## 🔄 Tareas programadas
 
-El scheduler (APScheduler) ejecuta cada hora: comprobación de alertas + escalado, envío de reportes según horario, salud de la BD + backup automático, snapshot de cumplimiento y reintento de emails fallidos.
+El scheduler (APScheduler) ejecuta cada hora:
+
+- **Comprobación de alertas + escalado** (omitida si SMTP no está configurado; el estado del aviso avanza aunque el envío falle, para no re-encolar duplicados).
+- **Envío de reportes** según el horario configurado.
+- **Salud de la BD + backup automático.**
+- **Snapshot de cumplimiento** (1 al día) para la gráfica de tendencia.
+- **Reintento de emails fallidos** con deduplicación de avisos, marcado como *abandonado* al agotar intentos, **aviso a administradores** ante problemas de envío y purga de registros antiguos.
 
 ---
 
