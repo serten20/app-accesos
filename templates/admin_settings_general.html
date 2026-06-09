@@ -142,6 +142,31 @@
       </div>
     </div>
 
+    <!-- ── Identidad / Marca ── -->
+    <div class="card bg-base-100 border border-base-200 mt-5">
+      <div class="card-body p-5 gap-4">
+        <div class="flex items-center gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 2H21l-3 6 3 6h-8.5l-1-2H5a2 2 0 00-2 2z"/>
+          </svg>
+          <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Identidad</h2>
+        </div>
+        <p class="text-xs text-base-content/40">
+          Nombre de tu empresa u organización. Aparece en el pie de la página de inicio de sesión
+          (junto a “© 2026 · USO INTERNO”). Déjalo vacío para no mostrar ninguno.
+        </p>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs">Nombre de la empresa</span></label>
+          <input type="text" name="company_name" value="{{ cfg.company_name or '' }}" maxlength="80"
+                 class="input input-bordered input-sm bg-base-200" placeholder="Ej.: Mi Empresa S.L." />
+          <span class="label-text-alt text-xs text-base-content/30 mt-1">
+            Vista previa del pie: <span class="font-mono">© 2026 · USO INTERNO{% if cfg.company_name %} · {{ cfg.company_name|upper }}{% endif %}</span>
+          </span>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm w-fit">💾 Guardar</button>
+      </div>
+    </div>
+
   </form>
 
   <!-- Navegación rápida -->

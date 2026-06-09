@@ -203,7 +203,7 @@
       <div class="h-0.5 w-full" style="background: linear-gradient(90deg, transparent, rgba(99,102,241,0.4), transparent)"></div>
     </div>
 
-    <p class="text-center text-xs text-base-content/15 mt-6 tracking-wider">© 2026 · USO INTERNO · LOGICALIS</p>
+    <p class="text-center text-xs text-base-content/15 mt-6 tracking-wider">© 2026 · USO INTERNO{% if company_name %} · {{ company_name|upper }}{% endif %}</p>
   </div>
 
 </body>

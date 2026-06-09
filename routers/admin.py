@@ -1022,7 +1022,7 @@ ALERT_KEYS  = ["alert_start_days", "alert_interval_hours", "email_subject", "ema
 REPORT_KEYS = ["report_subject", "report_body", "report_day", "report_hour"]
 WELCOME_KEYS = ["welcome_subject", "welcome_body", "welcome_default_on"]
 GEN_KEYS    = ["timezone", "app_base_url", "confirm_token_hours",
-               "threshold_warning", "threshold_critical"]
+               "threshold_warning", "threshold_critical", "company_name"]
 
 
 # ── SMTP — servidor ──────────────────────────────────────────────────────────
@@ -1459,10 +1459,12 @@ async def general_settings_post(
     confirm_token_hours: str = Form("3"),
     threshold_warning: str = Form("7"),
     threshold_critical: str = Form("2"),
+    company_name: str = Form(""),
 ):
     db = request.state.db
     set_setting("timezone", timezone or "Europe/Madrid")
     set_setting("app_base_url", app_base_url.strip().rstrip("/"))
+    set_setting("company_name", company_name.strip()[:80])
     try:
         set_setting("confirm_token_hours", str(max(1, int(confirm_token_hours))))
     except (ValueError, TypeError):
