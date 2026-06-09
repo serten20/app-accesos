@@ -34,7 +34,7 @@
 <!-- KPIs -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
   <div class="kpi"><div class="kpi-label">Vencidos</div><div class="kpi-value" style="color:#f87171">{{ overdue }}</div></div>
-  <div class="kpi"><div class="kpi-label">Vencen en 7 días</div><div class="kpi-value" style="color:#facc15">{{ next_7 }}</div></div>
+  <div class="kpi"><div class="kpi-label">Vencen en {{ warn_days }} días</div><div class="kpi-value" style="color:#facc15">{{ next_7 }}</div></div>
   <div class="kpi"><div class="kpi-label">Vencen en 30 días</div><div class="kpi-value text-base-content/80">{{ next_30 }}</div></div>
   <div class="kpi"><div class="kpi-label">Rotaciones (12 meses)</div><div class="kpi-value" style="color:#4ade80">{{ rotations_year }}</div></div>
 </div>

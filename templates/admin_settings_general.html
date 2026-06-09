@@ -3,14 +3,20 @@
 {% block page_title %}Configuración General{% endblock %}
 
 {% block content %}
-<div class="max-w-xl">
+<div class="max-w-4xl">
 
   {% if request.query_params.get('success') %}
   <div class="alert alert-success mb-5 text-sm">✓ Configuración guardada correctamente.</div>
   {% endif %}
+  {% if request.query_params.get('error') %}
+  <div class="alert alert-error mb-5 text-sm">❌ {{ request.query_params.get('error') }}</div>
+  {% endif %}
 
   <form method="post" action="/admin/settings/general">
     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+
+    <!-- Fila superior: Zona Horaria + Umbrales -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
 
     <!-- ── Zona Horaria ── -->
     <div class="card bg-base-100 border border-base-200">
@@ -60,7 +66,7 @@
         </div>
 
         <!-- Hora actual en la zona seleccionada (JS) -->
-        <div class="bg-base-200 rounded-lg px-4 py-3 flex items-center gap-3">
+        <div class="bg-base-200 rounded-lg px-4 py-3 flex items-center gap-3 flex-1 min-h-[3.5rem]">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content/40 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
@@ -72,6 +78,40 @@
 
       </div>
     </div>
+
+    <!-- ── Umbrales del semáforo (atención / crítico) ── -->
+    <div class="card bg-base-100 border border-base-200">
+      <div class="card-body p-5 gap-4">
+        <div class="flex items-center gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.96l-6.93-12a2 2 0 00-3.5 0l-6.93 12A2 2 0 005.07 19z"/>
+          </svg>
+          <h2 class="font-semibold text-sm uppercase tracking-wider text-base-content/60">Umbrales de estado</h2>
+        </div>
+        <p class="text-xs text-base-content/40">
+          Define cuántos días restantes hasta el próximo cambio de contraseña marcan cada estado del semáforo.
+          Se aplica en todos los paneles y portales (admin y técnicos) en cuanto guardes. Por defecto: aviso 7, crítico 2.
+        </p>
+        <div class="flex gap-4 flex-wrap">
+          <div class="form-control">
+            <label class="label py-1"><span class="label-text text-xs flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-warning inline-block"></span> Días para AVISO (atención)</span></label>
+            <input type="number" name="threshold_warning" value="{{ cfg.threshold_warning or '7' }}" min="1" max="365"
+                   class="input input-bordered input-sm bg-base-200 w-32" />
+            <span class="label-text-alt text-xs text-base-content/30 mt-1">Quedan ≤ este nº de días → <b>atención</b>.</span>
+          </div>
+          <div class="form-control">
+            <label class="label py-1"><span class="label-text text-xs flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-error inline-block"></span> Días para CRÍTICO</span></label>
+            <input type="number" name="threshold_critical" value="{{ cfg.threshold_critical or '2' }}" min="0" max="365"
+                   class="input input-bordered input-sm bg-base-200 w-32" />
+            <span class="label-text-alt text-xs text-base-content/30 mt-1">Quedan ≤ este nº de días (o expirado) → <b>crítico</b>.</span>
+          </div>
+        </div>
+        <span class="text-xs text-base-content/30">El umbral crítico debe ser <b>menor</b> que el de atención. Más de “aviso” días restantes = OK (verde).</span>
+        <button type="submit" class="btn btn-primary btn-sm w-fit">💾 Guardar</button>
+      </div>
+    </div>
+
+    </div><!-- /fila superior -->
 
     <!-- ── Acceso desde emails ── -->
     <div class="card bg-base-100 border border-base-200 mt-5">

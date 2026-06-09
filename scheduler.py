@@ -262,8 +262,10 @@ def alert_mapping(tech_name: str, company, tc) -> dict:
     confirm_url = f"{base}/confirm/{token}"
     console_url = f"{base}/login"
 
-    # Color según urgencia (tonos legibles sobre fondo claro)
-    urgency = "#dc2626" if days <= 2 else ("#d97706" if days <= 7 else "#16a34a")
+    # Color según urgencia (tonos legibles sobre fondo claro), con umbrales configurables
+    from thresholds import get_thresholds
+    _crit_d, _warn_d = get_thresholds()
+    urgency = "#dc2626" if days <= _crit_d else ("#d97706" if days <= _warn_d else "#16a34a")
 
     # Botones de acceso (VPN/doc) — tabla + bgcolor (Word los respeta)
     def _btn(url, label):
@@ -549,7 +551,9 @@ def _should_alert(tc, start_days: int, interval_hours: float) -> bool:
     if tc.alert_last_sent is None:
         return True                               # nunca se ha enviado a este técnico
 
-    if days > 2:
+    from thresholds import get_thresholds
+    crit_days, _ = get_thresholds()
+    if days > crit_days:
         # Zona de aviso: solo UNA vez desde la última confirmación del técnico
         last_changed_dt = datetime.combine(tc._effective_last_changed, datetime.min.time())
         return tc.alert_last_sent < last_changed_dt

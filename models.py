@@ -2,6 +2,7 @@ from datetime import date, datetime
 from sqlalchemy import Column, Integer, String, Boolean, Date, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from database import Base
+from thresholds import classify
 
 
 class TechnicianCompany(Base):
@@ -34,12 +35,7 @@ class TechnicianCompany(Base):
 
     @property
     def status(self):
-        dr = self.days_remaining
-        if dr <= 2:
-            return "critical"
-        if dr <= 7:
-            return "warning"
-        return "ok"
+        return classify(self.days_remaining)
 
     @property
     def status_color(self):
@@ -144,12 +140,7 @@ class Company(Base):
                 return "warning"
             return "ok"
         # Sin técnicos → usar last_changed global
-        dr = self.days_remaining
-        if dr <= 2:
-            return "critical"
-        if dr <= 7:
-            return "warning"
-        return "ok"
+        return classify(self.days_remaining)
 
     @property
     def status_color(self):

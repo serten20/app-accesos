@@ -177,7 +177,7 @@
   <!-- Donut: estado actual -->
   <div class="glass-panel">
     <div class="panel-header">
-      <span class="panel-title">Distribución actual<span class="help-i" tabindex="0" data-help="Estado por días restantes hasta el próximo cambio de contraseña: CRÍTICO cuando quedan 2 días o menos (o ya expiró), AVISO cuando quedan 7 días o menos, y OK cuando quedan más de 7.">i</span></span>
+      <span class="panel-title">Distribución actual<span class="help-i" tabindex="0" data-help="Estado por días restantes hasta el próximo cambio de contraseña: CRÍTICO cuando quedan {{ crit_days }} día(s) o menos (o ya expiró), AVISO cuando quedan {{ warn_days }} día(s) o menos, y OK cuando quedan más de {{ warn_days }}.">i</span></span>
     </div>
     <div class="p-5 flex items-center justify-center" style="min-height:240px">
       <canvas id="chart-donut" style="max-height:220px"></canvas>
@@ -211,7 +211,7 @@
     <div class="flex items-center gap-4">
       <div class="flex items-center gap-3 text-xs">
         {% if exp_overdue %}<span style="color:#f87171"><b>{{ exp_overdue }}</b> vencido(s)</span>{% endif %}
-        <span style="color:#facc15"><b>{{ exp_7 }}</b> en 7 días</span>
+        <span style="color:#facc15"><b>{{ exp_7 }}</b> en {{ warn_days }} días</span>
         <span class="text-base-content/45"><b>{{ exp_30 }}</b> en 30 días</span>
       </div>
       <a href="/admin/reports/calendar" class="text-xs text-blue-400/60 hover:text-blue-400 transition-colors">Ver calendario completo →</a>

@@ -158,7 +158,9 @@ async def reports_calendar(request: Request):
             "days": tc.days_remaining,
         })
 
-    next_7 = sum(1 for e in expiries if 0 <= e["days"] <= 7)
+    from thresholds import get_thresholds
+    crit_days, warn_days = get_thresholds()
+    next_7 = sum(1 for e in expiries if 0 <= e["days"] <= warn_days)
     next_30 = sum(1 for e in expiries if 0 <= e["days"] <= 30)
     overdue = sum(1 for e in expiries if e["days"] < 0)
 
@@ -181,6 +183,8 @@ async def reports_calendar(request: Request):
         "overdue": overdue,
         "rotations_year": rotations_year,
         "total_expiries": len(expiries),
+        "warn_days": warn_days,
+        "crit_days": crit_days,
     })
 
 

@@ -29,7 +29,7 @@
         Hola <b class="text-base-content/80">{{ tech }}</b>, ¿confirmas que has rotado la contraseña de acceso del cliente
         <b class="text-base-content/80">{{ company }}</b>?
       </p>
-      <p class="text-xs mb-6 {% if days <= 2 %}text-red-400{% elif days <= 7 %}text-yellow-400{% else %}text-emerald-400{% endif %}">
+      <p class="text-xs mb-6 {% if status == 'critical' %}text-red-400{% elif status == 'warning' %}text-yellow-400{% else %}text-emerald-400{% endif %}">
         {% if days <= 0 %}Acceso expirado{% else %}Quedan {{ days }} día(s){% endif %}
       </p>
       <form method="post" action="/confirm/{{ token }}">
