@@ -1,6 +1,7 @@
 import csv
 import io
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from urllib.parse import urlencode
 from fastapi import APIRouter, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse, FileResponse
 from sqlalchemy import or_
@@ -748,8 +749,14 @@ async def download_sample(request: Request, mode: str, fmt: str):
         content = "username,email,password,must_change_password\n"
         content += "tecnico01,tecnico01@empresa.com,Pass1234!,si\n"
         content += "tecnico02,tecnico02@empresa.com,Pass1234!,si\n"
-        content += "tecnico03,tecnico03@empresa.com,TempPass99,no\n"
+        content += "tecnico03,tecnico03@empresa.com,,si\n"
         filename = f"muestra_usuarios.{fmt}"
+    elif mode == "assignments":
+        content = "tecnico,empresa,last_changed\n"
+        content += "tecnico01,Empresa Ejemplo 1,2026-06-17\n"
+        content += "tecnico01,Empresa Ejemplo 2,\n"
+        content += "tecnico02,Empresa Ejemplo 1,17/06/2026\n"
+        filename = f"muestra_asignaciones.{fmt}"
     else:
         return Response("Modo no válido", status_code=400)
 
@@ -812,16 +819,16 @@ async def bulk_import_preview(
                 "valid": len(row_errors) == 0,
             })
 
-    else:  # users
+    elif mode == "users":
         existing_usernames = {u.username.lower() for u in db.query(User).all()}
         existing_emails = {u.email.lower() for u in db.query(User).all()}
-        required = {"username", "email", "password"}
+        required = {"username", "email"}
 
         for i, row in enumerate(reader, start=2):
             row = {k.strip().lower(): v.strip() for k, v in row.items() if k}
             row_errors = []
             if not required.issubset(row.keys()):
-                row_errors.append("Faltan columnas: username, email, password")
+                row_errors.append("Faltan columnas: username, email")
             else:
                 if not row.get("username"):
                     row_errors.append("username vacío")
@@ -833,7 +840,10 @@ async def bulk_import_preview(
                     row_errors.append("email vacío")
                 elif row["email"].lower() in existing_emails:
                     row_errors.append("Email ya existe")
-                if not row.get("password") or len(row.get("password", "")) < 6:
+                # Contraseña: vacía = se generará una temporal (migración).
+                # Si se indica una, debe tener al menos 6 caracteres.
+                pwd = row.get("password", "")
+                if pwd and len(pwd) < 6:
                     row_errors.append("Contraseña muy corta (mín. 6 chars)")
             seen_in_file.add(row.get("username", "").lower())
             rows.append({
@@ -847,10 +857,56 @@ async def bulk_import_preview(
                 "valid": len(row_errors) == 0,
             })
 
+    elif mode == "assignments":
+        techs_by_name = {u.username.lower(): u for u in db.query(User).filter(_assignable_tech_filter()).all()}
+        comps_by_name = {c.name.lower(): c for c in db.query(Company).all()}
+        from models import TechnicianCompany
+        existing_pairs = {(tc.technician_id, tc.company_id) for tc in db.query(TechnicianCompany).all()}
+        required = {"tecnico", "empresa"}
+
+        for i, row in enumerate(reader, start=2):
+            row = {k.strip().lower(): v.strip() for k, v in row.items() if k}
+            row_errors = []
+            if not required.issubset(row.keys()):
+                row_errors.append("Faltan columnas: tecnico, empresa")
+            else:
+                tname = row.get("tecnico", "")
+                cname = row.get("empresa", "")
+                tech = techs_by_name.get(tname.lower())
+                comp = comps_by_name.get(cname.lower())
+                if not tname:
+                    row_errors.append("tecnico vacío")
+                elif not tech:
+                    row_errors.append("Técnico no existe")
+                if not cname:
+                    row_errors.append("empresa vacía")
+                elif not comp:
+                    row_errors.append("Empresa no existe")
+                pair_key = (tname.lower(), cname.lower())
+                if tech and comp and (tech.id, comp.id) in existing_pairs:
+                    row_errors.append("Ya asignada")
+                elif pair_key in seen_in_file:
+                    row_errors.append("Duplicado en archivo")
+                _d, _ok = _parse_date_flexible(row.get("last_changed", ""))
+                if not _ok:
+                    row_errors.append("last_changed inválida (AAAA-MM-DD o DD/MM/AAAA)")
+                seen_in_file.add(pair_key)
+            rows.append({
+                "line": i,
+                "col1": row.get("tecnico", ""),
+                "col2": row.get("empresa", ""),
+                "col3": row.get("last_changed", ""),
+                "col4": "",
+                "col5": "",
+                "errors": row_errors,
+                "valid": len(row_errors) == 0,
+            })
+
     # Guardar SOLO las filas válidas en un almacén temporal en servidor.
     # Así las contraseñas no se incrustan en el HTML ni viajan de vuelta por el navegador.
     valid_rows = [
-        {"col1": r["col1"], "col2": r["col2"], "col3": r["col3"], "col4": r["col4"], "col5": r["col5"]}
+        {"col1": r["col1"], "col2": r["col2"], "col3": r["col3"],
+         "col4": r["col4"], "col5": r["col5"], "col6": r.get("col6", "")}
         for r in rows if r["valid"]
     ]
     import_token = _store_import(valid_rows, mode) if valid_rows else ""
@@ -898,17 +954,45 @@ async def bulk_import_confirm(request: Request):
         _delete_import(import_token)
         audit_mod.log(db, f"Importación masiva: {inserted} empresas importadas", user_id=request.state.current_user.id)
         return RedirectResponse(f"/admin/companies?imported={inserted}", status_code=302)
+    elif mode == "assignments":
+        from models import TechnicianCompany
+        techs_by_name = {u.username.lower(): u for u in db.query(User).filter(_assignable_tech_filter()).all()}
+        comps_by_name = {c.name.lower(): c for c in db.query(Company).all()}
+        for r in rows:
+            tech = techs_by_name.get((r["col1"] or "").lower())
+            comp = comps_by_name.get((r["col2"] or "").lower())
+            if not tech or not comp:
+                continue
+            if db.query(TechnicianCompany).filter_by(technician_id=tech.id, company_id=comp.id).first():
+                continue
+            _d, _ok = _parse_date_flexible(r.get("col3", ""))
+            tc = TechnicianCompany(technician_id=tech.id, company_id=comp.id)
+            # last_changed tiene default=hoy; solo lo fijamos si viene una fecha válida
+            if _ok and _d:
+                tc.last_changed = _d
+            db.add(tc)
+            inserted += 1
+        db.commit()
+        _delete_import(import_token)
+        audit_mod.log(db, f"Importación masiva: {inserted} asignaciones importadas", user_id=request.state.current_user.id)
+        return RedirectResponse(f"/admin/matrix?imported={inserted}", status_code=302)
+
     else:
         send_welcome = (form.get("send_welcome", "") == "on")
         new_users = []   # (username, email, password) para la bienvenida
         for r in rows:
             username, email, password, must_change = r["col1"], r["col2"], r["col3"], r["col4"]
             if not db.query(User).filter(User.username == username).first():
+                # Contraseña vacía (migración) → generar temporal y forzar cambio
+                generated = not password
+                if generated:
+                    password = _secrets.token_urlsafe(9)
+                must_flag = generated or (str(must_change).lower() in ("si", "sí", "yes", "1", "true"))
                 db.add(User(
                     username=username, email=email,
                     hashed_password=hash_password(password),
                     role="technician",
-                    must_change_password=(str(must_change).lower() in ("si", "sí", "yes", "1", "true")),
+                    must_change_password=must_flag,
                 ))
                 inserted += 1
                 new_users.append((username, email, password))
@@ -1662,17 +1746,29 @@ async def database_purge(request: Request, purge_days: str = Form("90")):
 
 # ── Exportación CSV ──────────────────────────────────────────────────────────
 
-def _csv_response(rows: list, header: list, filename: str) -> Response:
+def _delimited_response(rows: list, header: list, filename: str,
+                        delimiter: str = ";", media_type: str = "text/csv") -> Response:
     buf = io.StringIO()
     buf.write("﻿")  # BOM para que Excel reconozca UTF-8 y los acentos
-    w = csv.writer(buf, delimiter=";")
+    w = csv.writer(buf, delimiter=delimiter)
     w.writerow(header)
     w.writerows(rows)
     return Response(
         content=buf.getvalue(),
-        media_type="text/csv; charset=utf-8",
+        media_type=f"{media_type}; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+def _csv_response(rows: list, header: list, filename: str) -> Response:
+    """CSV para informes (delimitado por ';', ideal para abrir en Excel)."""
+    return _delimited_response(rows, header, filename, delimiter=";")
+
+
+def _import_csv_response(rows: list, header: list, filename: str) -> Response:
+    """CSV pensado para volver a importar: delimitado por ',' como espera el
+    importador masivo (csv.DictReader usa coma por defecto)."""
+    return _delimited_response(rows, header, filename, delimiter=",")
 
 
 @router.get("/export/companies.csv")
@@ -1736,6 +1832,83 @@ async def export_audit_csv(request: Request):
     )
 
 
+# ── Exportación para migración (round-trip con importación masiva) ───────────
+
+@router.get("/export/companies-import.csv")
+@require_admin
+async def export_companies_import(request: Request):
+    """Exporta empresas en el MISMO formato que acepta la importación masiva,
+    para migrar o reconstruir rápidamente la configuración."""
+    db = request.state.db
+    rows = []
+    for c in db.query(Company).order_by(Company.name).all():
+        rows.append([
+            c.name,
+            c.vpn_url or "",
+            c.doc_url or "",
+            c.expiry_days,
+            (c.notes or "").replace("\r", " ").replace("\n", " "),
+            c.last_changed.isoformat() if c.last_changed else "",
+        ])
+    audit_mod.log(db, f"Exportación para migración: {len(rows)} empresas", user_id=request.state.current_user.id)
+    return _import_csv_response(
+        rows,
+        ["name", "vpn_url", "doc_url", "expiry_days", "notes", "last_changed"],
+        f"empresas_import_{date.today().isoformat()}.csv",
+    )
+
+
+@router.get("/export/technicians-import.csv")
+@require_admin
+async def export_technicians_import(request: Request):
+    """Exporta técnicos en el formato de importación masiva. La contraseña va
+    VACÍA (no es recuperable): al reimportar se generará una temporal y se
+    forzará el cambio en el primer inicio de sesión."""
+    db = request.state.db
+    rows = []
+    techs = db.query(User).filter(User.role == "technician").order_by(User.username).all()
+    for t in techs:
+        rows.append([
+            t.username,
+            t.email or "",
+            "",  # password vacío → el importador genera una temporal
+            "si" if t.must_change_password else "no",
+        ])
+    audit_mod.log(db, f"Exportación para migración: {len(rows)} técnicos", user_id=request.state.current_user.id)
+    return _import_csv_response(
+        rows,
+        ["username", "email", "password", "must_change_password"],
+        f"tecnicos_import_{date.today().isoformat()}.csv",
+    )
+
+
+@router.get("/export/assignments.csv")
+@require_admin
+async def export_assignments(request: Request):
+    """Exporta las asignaciones técnico↔empresa (con su fecha de último cambio)
+    en el formato que acepta la importación masiva de asignaciones."""
+    db = request.state.db
+    from models import TechnicianCompany
+    rows = []
+    for tc in db.query(TechnicianCompany).all():
+        tech = tc.technician
+        comp = tc.company
+        if not tech or not comp:
+            continue
+        rows.append([
+            tech.username,
+            comp.name,
+            tc.last_changed.isoformat() if tc.last_changed else "",
+        ])
+    rows.sort(key=lambda r: (r[0].lower(), r[1].lower()))
+    audit_mod.log(db, f"Exportación para migración: {len(rows)} asignaciones", user_id=request.state.current_user.id)
+    return _import_csv_response(
+        rows,
+        ["tecnico", "empresa", "last_changed"],
+        f"asignaciones_{date.today().isoformat()}.csv",
+    )
+
+
 # ── Vista matriz técnicos × empresas ─────────────────────────────────────────
 
 @router.get("/matrix", response_class=HTMLResponse)
@@ -1758,23 +1931,124 @@ async def access_matrix(request: Request):
 
 # ── Historial de rotaciones ──────────────────────────────────────────────────
 
+def _parse_rotations_filters(params) -> dict:
+    """Normaliza los filtros del historial desde los query params."""
+    preset = (params.get("preset") or "").strip()
+    desde_raw = (params.get("desde") or "").strip()
+    hasta_raw = (params.get("hasta") or "").strip()
+    desde = hasta = None
+    if preset in ("7", "30", "90"):
+        desde = date.today() - timedelta(days=int(preset))
+        desde_raw = hasta_raw = ""  # el preset manda; no mostramos fechas manuales
+    else:
+        preset = preset if preset == "todo" else ""
+        d, ok = _parse_date_flexible(desde_raw)
+        if ok and d:
+            desde = d
+        h, ok2 = _parse_date_flexible(hasta_raw)
+        if ok2 and h:
+            hasta = h
+    try:
+        tech_id = int(params.get("tech_id")) if params.get("tech_id") else None
+    except (ValueError, TypeError):
+        tech_id = None
+    try:
+        company_id = int(params.get("company_id")) if params.get("company_id") else None
+    except (ValueError, TypeError):
+        company_id = None
+    return {
+        "preset": preset, "desde": desde, "hasta": hasta,
+        "desde_raw": desde_raw, "hasta_raw": hasta_raw,
+        "tech_id": tech_id, "company_id": company_id,
+    }
+
+
+def _rotations_query(db, f: dict):
+    from models import RotationHistory
+    q = db.query(RotationHistory)
+    if f["desde"]:
+        q = q.filter(RotationHistory.confirmed_at >= datetime.combine(f["desde"], datetime.min.time()))
+    if f["hasta"]:
+        q = q.filter(RotationHistory.confirmed_at < datetime.combine(f["hasta"] + timedelta(days=1), datetime.min.time()))
+    if f["tech_id"]:
+        q = q.filter(RotationHistory.technician_id == f["tech_id"])
+    if f["company_id"]:
+        q = q.filter(RotationHistory.company_id == f["company_id"])
+    return q.order_by(RotationHistory.confirmed_at.desc())
+
+
+def _rotations_export_qs(f: dict) -> str:
+    """Reconstruye el query string de filtros activos para los enlaces de export."""
+    p = {}
+    if f["preset"]:
+        p["preset"] = f["preset"]
+    if f["desde_raw"]:
+        p["desde"] = f["desde_raw"]
+    if f["hasta_raw"]:
+        p["hasta"] = f["hasta_raw"]
+    if f["tech_id"]:
+        p["tech_id"] = f["tech_id"]
+    if f["company_id"]:
+        p["company_id"] = f["company_id"]
+    return urlencode(p)
+
+
 @router.get("/rotations", response_class=HTMLResponse)
 @require_viewer
 async def rotations_history(request: Request):
     db = request.state.db
     from models import RotationHistory
-    rows = (db.query(RotationHistory)
-            .order_by(RotationHistory.confirmed_at.desc())
-            .limit(300).all())
-    total = db.query(RotationHistory).count()
-    late = db.query(RotationHistory).filter(RotationHistory.days_late > 0).count()
+    f = _parse_rotations_filters(request.query_params)
+    q = _rotations_query(db, f)
+    matched = q.count()
+    rows = q.limit(500).all()
+    late = sum(1 for r in rows if (r.days_late or 0) > 0)
+    grand_total = db.query(RotationHistory).count()
+    # Opciones de filtro: pares (id, nombre) presentes en el historial
+    tech_opts = sorted(
+        {(t[0], t[1]) for t in db.query(RotationHistory.technician_id, RotationHistory.technician_name)
+         .filter(RotationHistory.technician_id.isnot(None)).distinct().all()},
+        key=lambda x: (x[1] or "").lower())
+    comp_opts = sorted(
+        {(c[0], c[1]) for c in db.query(RotationHistory.company_id, RotationHistory.company_name)
+         .filter(RotationHistory.company_id.isnot(None)).distinct().all()},
+        key=lambda x: (x[1] or "").lower())
     return templates.TemplateResponse("admin_rotations.html", {
         "request": request,
         "user": request.state.current_user,
         "rows": rows,
-        "total": total,
+        "total": grand_total,
+        "matched": matched,
         "late": late,
+        "filters": f,
+        "tech_options": tech_opts,
+        "comp_options": comp_opts,
+        "export_qs": _rotations_export_qs(f),
     })
+
+
+@router.get("/rotations/export")
+@require_admin
+async def rotations_export(request: Request):
+    db = request.state.db
+    fmt = (request.query_params.get("fmt") or "csv").lower()
+    f = _parse_rotations_filters(request.query_params)
+    rows = _rotations_query(db, f).limit(20000).all()
+    data = [[
+        r.confirmed_at.strftime("%d/%m/%Y %H:%M") if r.confirmed_at else "",
+        r.technician_name or (r.technician.username if r.technician else ""),
+        r.company_name or (r.company.name if r.company else ""),
+        r.rotated_on.strftime("%d/%m/%Y") if r.rotated_on else "",
+        r.days_late or 0,
+        "A tiempo" if (r.days_late or 0) <= 0 else f"{r.days_late}d tarde",
+    ] for r in rows]
+    header = ["Fecha confirmación", "Técnico", "Empresa", "Rotada el", "Días de retraso", "Puntualidad"]
+    audit_mod.log(db, f"Exportación de historial de rotaciones ({len(data)} filas)", user_id=request.state.current_user.id)
+    if fmt == "txt":
+        return _delimited_response(
+            data, header, f"rotaciones_{date.today().isoformat()}.txt",
+            delimiter="\t", media_type="text/plain")
+    return _csv_response(data, header, f"rotaciones_{date.today().isoformat()}.csv")
 
 
 # ── Reporte de prueba con datos reales ───────────────────────────────────────

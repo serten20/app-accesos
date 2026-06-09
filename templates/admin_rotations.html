@@ -17,6 +17,10 @@
   .pill-ontime { background:rgba(34,197,94,0.12); color:#4ade80; border:1px solid rgba(34,197,94,0.2); }
   .pill-late   { background:rgba(239,68,68,0.1); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
   .mono { font-family:monospace; }
+  .lnk { color:inherit; text-decoration:none; border-bottom:1px dotted rgba(166,173,187,0.4); }
+  .lnk:hover { color:#93c5fd; border-bottom-color:#93c5fd; }
+  .chip { display:inline-flex; padding:0.2rem 0.6rem; border-radius:9999px; font-size:0.65rem; font-weight:600; border:1px solid rgba(255,255,255,0.1); color:rgba(166,173,187,0.7); }
+  .chip-active { background:rgba(59,130,246,0.15); border-color:rgba(59,130,246,0.4); color:#93c5fd; }
 </style>
 
 <!-- KPIs -->
@@ -26,18 +30,67 @@
     <div class="kpi-value text-base-content/80">{{ total }}</div>
   </div>
   <div class="kpi">
-    <div class="kpi-label">A tiempo</div>
-    <div class="kpi-value" style="color:#4ade80">{{ total - late }}</div>
+    <div class="kpi-label">A tiempo (mostradas)</div>
+    <div class="kpi-value" style="color:#4ade80">{{ rows|length - late }}</div>
   </div>
   <div class="kpi">
-    <div class="kpi-label">Con retraso</div>
+    <div class="kpi-label">Con retraso (mostradas)</div>
     <div class="kpi-value" style="color:#f87171">{{ late }}</div>
   </div>
 </div>
 
+<!-- Filtros -->
+<div class="glass-panel mb-4">
+  <form method="get" action="/admin/rotations" class="p-4 flex flex-wrap items-end gap-3">
+    <div class="flex gap-1.5">
+      {% set presets = [('7','7 días'),('30','30 días'),('90','90 días'),('todo','Todo')] %}
+      {% for val, lbl in presets %}
+      <a href="/admin/rotations?preset={{ val }}"
+         class="chip {% if filters.preset == val %}chip-active{% endif %}">{{ lbl }}</a>
+      {% endfor %}
+    </div>
+    <div class="flex flex-col">
+      <label class="text-[0.6rem] uppercase tracking-wider text-base-content/35 mb-1">Desde</label>
+      <input type="date" name="desde" value="{{ filters.desde_raw }}" class="input input-bordered input-xs bg-base-200 w-36"/>
+    </div>
+    <div class="flex flex-col">
+      <label class="text-[0.6rem] uppercase tracking-wider text-base-content/35 mb-1">Hasta</label>
+      <input type="date" name="hasta" value="{{ filters.hasta_raw }}" class="input input-bordered input-xs bg-base-200 w-36"/>
+    </div>
+    <div class="flex flex-col">
+      <label class="text-[0.6rem] uppercase tracking-wider text-base-content/35 mb-1">Técnico</label>
+      <select name="tech_id" class="select select-bordered select-xs bg-base-200 w-40">
+        <option value="">Todos</option>
+        {% for tid, tname in tech_options %}
+        <option value="{{ tid }}" {% if filters.tech_id == tid %}selected{% endif %}>{{ tname }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="flex flex-col">
+      <label class="text-[0.6rem] uppercase tracking-wider text-base-content/35 mb-1">Empresa</label>
+      <select name="company_id" class="select select-bordered select-xs bg-base-200 w-44">
+        <option value="">Todas</option>
+        {% for cid, cname in comp_options %}
+        <option value="{{ cid }}" {% if filters.company_id == cid %}selected{% endif %}>{{ cname }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-xs btn-primary">Filtrar</button>
+    <a href="/admin/rotations" class="btn btn-xs btn-ghost text-base-content/50">Limpiar</a>
+    <div class="ml-auto flex gap-2">
+      <a href="/admin/rotations/export?fmt=csv{% if export_qs %}&{{ export_qs }}{% endif %}"
+         class="btn btn-xs btn-outline gap-1" style="border-color:rgba(34,197,94,0.3);color:#4ade80">⬇ CSV</a>
+      <a href="/admin/rotations/export?fmt=txt{% if export_qs %}&{{ export_qs }}{% endif %}"
+         class="btn btn-xs btn-outline gap-1">⬇ TXT</a>
+    </div>
+  </form>
+</div>
+
 <div class="glass-panel">
   <div class="flex items-center justify-between px-5 py-3" style="border-bottom:1px solid rgba(255,255,255,0.05)">
-    <span class="text-xs font-bold uppercase tracking-wider text-base-content/40">Últimas {{ rows|length }} rotaciones</span>
+    <span class="text-xs font-bold uppercase tracking-wider text-base-content/40">
+      {{ matched }} resultado(s){% if rows|length < matched %} · mostrando {{ rows|length }}{% endif %}
+    </span>
     <span class="text-xs text-base-content/25">Más recientes primero</span>
   </div>
   <table class="data-table">
@@ -54,8 +107,16 @@
       {% for r in rows %}
       <tr>
         <td class="mono text-base-content/55">{{ r.confirmed_at.strftime('%d/%m/%Y %H:%M') if r.confirmed_at else '—' }}</td>
-        <td class="font-medium text-base-content/85">{{ r.technician_name or (r.technician.username if r.technician else '—') }}</td>
-        <td>{{ r.company_name or (r.company.name if r.company else '—') }}</td>
+        <td class="font-medium text-base-content/85">
+          {% if r.technician %}<a class="lnk" href="/admin/technician/{{ r.technician_id }}">{{ r.technician_name or r.technician.username }}</a>
+          {% elif r.technician_name %}<span class="tooltip" data-tip="Técnico eliminado">{{ r.technician_name }}</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if r.company %}<a class="lnk" href="/admin/company/{{ r.company_id }}">{{ r.company_name or r.company.name }}</a>
+          {% elif r.company_name %}<span class="tooltip" data-tip="Empresa eliminada">{{ r.company_name }}</span>
+          {% else %}—{% endif %}
+        </td>
         <td class="mono text-base-content/50">{{ r.rotated_on.strftime('%d/%m/%Y') if r.rotated_on else '—' }}</td>
         <td style="text-align:right">
           {% if r.days_late and r.days_late > 0 %}
