@@ -44,7 +44,7 @@ async def confirm_get(request: Request, token: str):
             return _render(request, state="notfound")
         return _render(request, state="confirm", token=token,
                        tech=tc.technician.username, company=tc.company.name,
-                       days=tc.days_remaining)
+                       days=tc.days_remaining, status=tc.status)
     finally:
         db.close()
 

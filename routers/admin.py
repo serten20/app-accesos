@@ -138,8 +138,10 @@ async def admin_dashboard(request: Request):
             "status_color": tc.status_color,
         })
     upcoming.sort(key=lambda x: x["days"])
+    from thresholds import get_thresholds
+    crit_days, warn_days = get_thresholds()
     exp_overdue = sum(1 for e in upcoming if e["days"] < 0)
-    exp_7  = sum(1 for e in upcoming if 0 <= e["days"] <= 7)
+    exp_7  = sum(1 for e in upcoming if 0 <= e["days"] <= warn_days)
     exp_30 = sum(1 for e in upcoming if 0 <= e["days"] <= 30)
 
     return templates.TemplateResponse("admin_panel.html", {
@@ -153,6 +155,8 @@ async def admin_dashboard(request: Request):
         "exp_overdue": exp_overdue,
         "exp_7": exp_7,
         "exp_30": exp_30,
+        "warn_days": warn_days,
+        "crit_days": crit_days,
         **kpis,
     })
 
@@ -1017,7 +1021,8 @@ ALERT_KEYS  = ["alert_start_days", "alert_interval_hours", "email_subject", "ema
                "alert_escalation_admin_ids", "alert_escalation_extra_emails"]
 REPORT_KEYS = ["report_subject", "report_body", "report_day", "report_hour"]
 WELCOME_KEYS = ["welcome_subject", "welcome_body", "welcome_default_on"]
-GEN_KEYS    = ["timezone", "app_base_url", "confirm_token_hours"]
+GEN_KEYS    = ["timezone", "app_base_url", "confirm_token_hours",
+               "threshold_warning", "threshold_critical"]
 
 
 # ── SMTP — servidor ──────────────────────────────────────────────────────────
@@ -1432,6 +1437,11 @@ async def general_settings_get(request: Request):
     cfg.setdefault("timezone", "Europe/Madrid")
     if not cfg.get("confirm_token_hours"):
         cfg["confirm_token_hours"] = "3"
+    from thresholds import DEFAULT_WARNING, DEFAULT_CRITICAL
+    if not cfg.get("threshold_warning"):
+        cfg["threshold_warning"] = str(DEFAULT_WARNING)
+    if not cfg.get("threshold_critical"):
+        cfg["threshold_critical"] = str(DEFAULT_CRITICAL)
     return templates.TemplateResponse("admin_settings_general.html", {
         "request": request,
         "user": request.state.current_user,
@@ -1447,6 +1457,8 @@ async def general_settings_post(
     timezone: str = Form("Europe/Madrid"),
     app_base_url: str = Form(""),
     confirm_token_hours: str = Form("3"),
+    threshold_warning: str = Form("7"),
+    threshold_critical: str = Form("2"),
 ):
     db = request.state.db
     set_setting("timezone", timezone or "Europe/Madrid")
@@ -1455,7 +1467,26 @@ async def general_settings_post(
         set_setting("confirm_token_hours", str(max(1, int(confirm_token_hours))))
     except (ValueError, TypeError):
         set_setting("confirm_token_hours", "3")
-    audit_mod.log(db, "Configuración general actualizada", user_id=request.state.current_user.id)
+    # ── Umbrales del semáforo (atención / crítico) ──
+    from thresholds import DEFAULT_WARNING, DEFAULT_CRITICAL, reset_cache
+    try:
+        warn = max(1, int(threshold_warning))
+    except (ValueError, TypeError):
+        warn = DEFAULT_WARNING
+    try:
+        crit = max(0, int(threshold_critical))
+    except (ValueError, TypeError):
+        crit = DEFAULT_CRITICAL
+    # Coherencia: crítico estrictamente menor que atención
+    if crit >= warn:
+        return RedirectResponse(
+            "/admin/settings/general?error=El+umbral+cr%C3%ADtico+debe+ser+menor+que+el+de+atenci%C3%B3n",
+            status_code=302)
+    set_setting("threshold_warning", str(warn))
+    set_setting("threshold_critical", str(crit))
+    reset_cache()  # que el cambio se refleje de inmediato en todos los semáforos
+    audit_mod.log(db, f"Configuración general actualizada (umbrales: aviso {warn}d, crítico {crit}d)",
+                  user_id=request.state.current_user.id)
     return RedirectResponse("/admin/settings/general?success=1", status_code=302)
 
 
