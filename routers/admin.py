@@ -2181,7 +2181,8 @@ async def notifications_mark_read(request: Request):
 
 EMAIL_KIND_LABELS = {
     "alert": "Alerta técnico", "report": "Reporte", "escalation": "Escalado",
-    "db_alert": "Alerta BD", "test": "Prueba", "welcome": "Bienvenida", "other": "Otro",
+    "db_alert": "Alerta BD", "smtp_alert": "Aviso SMTP", "test": "Prueba",
+    "welcome": "Bienvenida", "other": "Otro",
 }
 
 
@@ -2204,8 +2205,12 @@ async def emails_log(request: Request):
     sent_today = db.query(EmailLog).filter(
         EmailLog.status == "sent", EmailLog.created_at >= today_start).count()
     failed_total = db.query(EmailLog).filter(EmailLog.status == "failed").count()
+    # Resueltos "ruidosos" que se pueden limpiar a mano (sustituidos + abandonados)
+    resolved_total = db.query(EmailLog).filter(
+        EmailLog.status.in_(["superseded", "abandoned"])).count()
     total = db.query(EmailLog).count()
 
+    from scheduler import MAX_EMAIL_ATTEMPTS
     return templates.TemplateResponse("admin_emails.html", {
         "request": request,
         "user": request.state.current_user,
@@ -2215,8 +2220,9 @@ async def emails_log(request: Request):
         "f_kind": kind,
         "sent_today": sent_today,
         "failed_total": failed_total,
+        "resolved_total": resolved_total,
         "total": total,
-        "max_attempts": 5,
+        "max_attempts": MAX_EMAIL_ATTEMPTS,
         "success": request.query_params.get("success"),
         "error": request.query_params.get("error"),
     })
@@ -2231,13 +2237,16 @@ async def email_retry(request: Request, email_id: int):
     row = db.query(EmailLog).filter(EmailLog.id == email_id).first()
     if not row:
         return RedirectResponse("/admin/emails?error=notfound", status_code=302)
+    from scheduler import MAX_EMAIL_ATTEMPTS
     ok, err = _smtp_send(row.to_address, row.subject or "", row.body or "")
     row.attempts = (row.attempts or 0) + 1
     row.last_attempt_at = datetime.utcnow()
     if ok:
         row.status = "sent"; row.sent_at = datetime.utcnow(); row.body = None; row.error = None
     else:
-        row.status = "failed"; row.error = err
+        # Reintento manual: si agota intentos lo dejamos como abandonado
+        row.status = "abandoned" if row.attempts >= MAX_EMAIL_ATTEMPTS else "failed"
+        row.error = err
     db.commit()
     return RedirectResponse(
         "/admin/emails?success=retry" if ok else "/admin/emails?error=retry_failed",
@@ -2250,6 +2259,22 @@ async def emails_retry_all(request: Request):
     from scheduler import job_retry_failed_emails
     job_retry_failed_emails()
     return RedirectResponse("/admin/emails?success=retry_all", status_code=302)
+
+
+@router.post("/emails/purge-resolved")
+@require_admin
+async def emails_purge_resolved(request: Request):
+    """Limpia los registros 'resueltos ruidosos': sustituidos y abandonados.
+    No toca los enviados (historial) ni los fallidos (aún pendientes)."""
+    from models import EmailLog
+    db = request.state.db
+    n = db.query(EmailLog).filter(
+        EmailLog.status.in_(["superseded", "abandoned"])
+    ).delete(synchronize_session=False)
+    db.commit()
+    audit_mod.log(db, f"Limpieza de registro de emails: {n} sustituidos/abandonados eliminados",
+                  user_id=request.state.current_user.id)
+    return RedirectResponse(f"/admin/emails?success=purged&n={n}", status_code=302)
 
 
 # ── Papelera (archivado lógico) ──────────────────────────────────────────────
