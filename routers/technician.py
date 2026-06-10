@@ -24,6 +24,9 @@ async def dashboard(request: Request):
     warning  = sum(1 for tc in tc_list if tc.status == "warning")
     ok       = sum(1 for tc in tc_list if tc.status == "ok")
 
+    from thresholds import get_thresholds
+    crit_days, warn_days = get_thresholds()
+
     return templates.TemplateResponse("dashboard.html", {
         "request":  request,
         "user":     user,
@@ -32,6 +35,8 @@ async def dashboard(request: Request):
         "critical": critical,
         "warning":  warning,
         "ok":       ok,
+        "warn_days": warn_days,
+        "crit_days": crit_days,
     })
 
 

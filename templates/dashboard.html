@@ -137,19 +137,19 @@
   <button onclick="filterCards('ok')" id="btn-ok" class="kpi-card kpi-ok">
     <div class="kpi-label">OK</div>
     <div class="kpi-value text-emerald-400">{{ ok }}</div>
-    <div class="kpi-desc">&ge; 8 días restantes</div>
+    <div class="kpi-desc">&ge; {{ warn_days + 1 }} días restantes</div>
     <svg class="kpi-icon h-14 w-14 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
   </button>
   <button onclick="filterCards('warning')" id="btn-warning" class="kpi-card kpi-warn">
     <div class="kpi-label">Atención</div>
     <div class="kpi-value text-yellow-400">{{ warning }}</div>
-    <div class="kpi-desc">&lt; 7 días restantes</div>
+    <div class="kpi-desc">&le; {{ warn_days }} días restantes</div>
     <svg class="kpi-icon h-14 w-14 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
   </button>
   <button onclick="filterCards('critical')" id="btn-critical" class="kpi-card kpi-crit">
     <div class="kpi-label">Crítico</div>
     <div class="kpi-value text-red-400">{{ critical }}</div>
-    <div class="kpi-desc">&lt; 2 días / expirado</div>
+    <div class="kpi-desc">&le; {{ crit_days }} días / expirado</div>
     <svg class="kpi-icon h-14 w-14 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
   </button>
 </div>
