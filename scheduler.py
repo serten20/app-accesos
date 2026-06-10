@@ -291,7 +291,7 @@ def alert_mapping(tech_name: str, company, tc) -> dict:
         "{days_remaining}": str(days) if days > 0 else "EXPIRADO",
         "{vpn_url}": company.vpn_url or "—",
         "{doc_url}": company.doc_url or "—",
-        "{last_changed}": str(tc._effective_last_changed),
+        "{last_changed}": tc._effective_last_changed.strftime("%d/%m/%Y"),
         "{expiry_date}": expiry_date,
         "{vpn_url_block}": vpn_block,
         "{confirm_url}": confirm_url,
