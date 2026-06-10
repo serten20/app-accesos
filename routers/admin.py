@@ -1021,6 +1021,7 @@ ALERT_KEYS  = ["alert_start_days", "alert_interval_hours", "email_subject", "ema
                "alert_escalation_admin_ids", "alert_escalation_extra_emails"]
 REPORT_KEYS = ["report_subject", "report_body", "report_day", "report_hour"]
 WELCOME_KEYS = ["welcome_subject", "welcome_body", "welcome_default_on"]
+ESCALATION_KEYS = ["escalation_subject", "escalation_body"]
 GEN_KEYS    = ["timezone", "app_base_url", "confirm_token_hours",
                "threshold_warning", "threshold_critical", "company_name"]
 
@@ -1427,6 +1428,79 @@ async def welcome_test_send(
     ok = _send_email(me.email, "[PRUEBA] " + subj, body, kind="welcome")
     return RedirectResponse(
         "/admin/settings/welcome?success=test" if ok else "/admin/settings/welcome?error=test_fail",
+        status_code=302)
+
+
+# ── Plantilla de email de escalado ───────────────────────────────────────────
+
+@router.get("/settings/escalation", response_class=HTMLResponse)
+@require_viewer
+async def escalation_settings_get(request: Request):
+    from scheduler import (DEFAULT_ESCALATION_SUBJECT, DEFAULT_ESCALATION_BODY,
+                           ESCALATION_VARS, escalation_example_mapping)
+    cfg = {k: get_setting(k) for k in ESCALATION_KEYS}
+    if not cfg.get("escalation_subject"):
+        cfg["escalation_subject"] = DEFAULT_ESCALATION_SUBJECT
+    if not cfg.get("escalation_body"):
+        cfg["escalation_body"] = DEFAULT_ESCALATION_BODY
+    return templates.TemplateResponse("admin_escalation.html", {
+        "request": request,
+        "user": request.state.current_user,
+        "cfg": cfg,
+        "escalation_vars": ESCALATION_VARS,
+        "preview_vars": escalation_example_mapping(),
+        "esc_enabled": (get_setting("alert_escalation_enabled") or "off") == "on",
+        "success": request.query_params.get("success"),
+        "error": request.query_params.get("error"),
+    })
+
+
+@router.post("/settings/escalation")
+@require_admin
+async def escalation_settings_post(
+    request: Request,
+    escalation_subject: str = Form(""),
+    escalation_body: str = Form(""),
+):
+    set_setting("escalation_subject", escalation_subject)
+    set_setting("escalation_body", escalation_body)
+    audit_mod.log(request.state.db, "Plantilla de email de escalado actualizada",
+                  user_id=request.state.current_user.id)
+    return RedirectResponse("/admin/settings/escalation?success=1", status_code=302)
+
+
+@router.post("/settings/escalation/restore-default")
+@require_admin
+async def escalation_restore_default(request: Request):
+    from scheduler import DEFAULT_ESCALATION_SUBJECT, DEFAULT_ESCALATION_BODY
+    set_setting("escalation_subject", DEFAULT_ESCALATION_SUBJECT)
+    set_setting("escalation_body", DEFAULT_ESCALATION_BODY)
+    audit_mod.log(request.state.db, "Plantilla de escalado restaurada a la de por defecto",
+                  user_id=request.state.current_user.id)
+    return RedirectResponse("/admin/settings/escalation?success=restored", status_code=302)
+
+
+@router.post("/settings/escalation/test")
+@require_admin
+async def escalation_test_send(
+    request: Request,
+    escalation_subject: str = Form(None),
+    escalation_body: str = Form(None),
+):
+    """Envía la plantilla de escalado (con datos de ejemplo) al email del admin."""
+    from scheduler import (escalation_example_mapping, _send_email,
+                           DEFAULT_ESCALATION_SUBJECT, DEFAULT_ESCALATION_BODY)
+    me = request.state.current_user
+    if not me.email:
+        return RedirectResponse("/admin/settings/escalation?error=no_email", status_code=302)
+    subj = escalation_subject if escalation_subject is not None else (get_setting("escalation_subject") or DEFAULT_ESCALATION_SUBJECT)
+    body = escalation_body if escalation_body is not None else (get_setting("escalation_body") or DEFAULT_ESCALATION_BODY)
+    for k, v in escalation_example_mapping().items():
+        subj = subj.replace(k, v)
+        body = body.replace(k, v)
+    ok = _send_email(me.email, "[PRUEBA] " + subj, body, kind="escalation")
+    return RedirectResponse(
+        "/admin/settings/escalation?success=test" if ok else "/admin/settings/escalation?error=test_fail",
         status_code=302)
 
 

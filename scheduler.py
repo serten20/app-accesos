@@ -56,6 +56,16 @@ WELCOME_VARS = {
     "{app_name}": "Nombre de la aplicación",
 }
 
+# ── Variables para email de escalado a administradores ───────────────────────
+ESCALATION_VARS = {
+    "{technician}": "Nombre del técnico que no confirma",
+    "{company}": "Nombre de la empresa/cliente",
+    "{tech_email}": "Email del técnico",
+    "{alert_count}": "Nº de avisos enviados sin confirmar",
+    "{estado}": "Estado: 'quedan X días' o 'EXPIRADO'",
+    "{days_remaining}": "Días restantes (número)",
+}
+
 DEFAULT_REPORT_SUBJECT = "📊 Reporte de Accesos — {fecha} — Cumplimiento {compliance_pct}%"
 # Plantilla "a prueba de Outlook Desktop" (motor Word): tablas + bgcolor en todas
 # las celdas, anchos por atributo, ghost table MSO. Tema claro.
@@ -563,14 +573,8 @@ def _should_alert(tc, start_days: int, interval_hours: float) -> bool:
         return elapsed >= interval_hours
 
 
-def _send_escalation(tc, tech, company, recipient_emails) -> bool:
-    """Envía un email de escalado a la lista de destinatarios (admins elegidos
-    y/o emails externos) indicando que un técnico no ha confirmado tras varios
-    avisos."""
-    days = tc.days_remaining
-    estado = "EXPIRADO" if days <= 0 else f"quedan {days} días"
-    subject = f"⛔ Escalado — {company.name} sin rotar ({tech.username})"
-    body = f"""\
+DEFAULT_ESCALATION_SUBJECT = "⛔ Escalado — {company} sin rotar ({technician})"
+DEFAULT_ESCALATION_BODY = """\
 <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0f1117;color:#a6adbb;border-radius:12px;overflow:hidden">
   <div style="background:linear-gradient(135deg,#7c2d12,#1e1b4b);padding:24px 32px">
     <h1 style="margin:0;font-size:18px;color:#fdba74;letter-spacing:1px">⛔ ALERTA ESCALADA</h1>
@@ -578,15 +582,15 @@ def _send_escalation(tc, tech, company, recipient_emails) -> bool:
   </div>
   <div style="padding:24px 32px">
     <p style="font-size:14px;color:#e5e7eb;margin:0 0 16px">
-      El técnico <b style="color:#fdba74">{tech.username}</b> ha recibido
-      <b>{tc.alert_count}</b> avisos sobre el cliente <b style="color:#fdba74">{company.name}</b>
+      El técnico <b style="color:#fdba74">{technician}</b> ha recibido
+      <b>{alert_count}</b> avisos sobre el cliente <b style="color:#fdba74">{company}</b>
       y aún <b>no ha confirmado</b> la rotación.
     </p>
     <div style="background:#1a1f2e;border:1px solid #374151;border-radius:8px;padding:14px;font-size:13px">
-      <p style="margin:0 0 6px">· Cliente: <b style="color:#e5e7eb">{company.name}</b></p>
-      <p style="margin:0 0 6px">· Técnico: <b style="color:#e5e7eb">{tech.username}</b> ({tech.email})</p>
+      <p style="margin:0 0 6px">· Cliente: <b style="color:#e5e7eb">{company}</b></p>
+      <p style="margin:0 0 6px">· Técnico: <b style="color:#e5e7eb">{technician}</b> ({tech_email})</p>
       <p style="margin:0 0 6px">· Estado: <b style="color:#f87171">{estado}</b></p>
-      <p style="margin:0">· Avisos enviados sin respuesta: <b style="color:#f87171">{tc.alert_count}</b></p>
+      <p style="margin:0">· Avisos enviados sin respuesta: <b style="color:#f87171">{alert_count}</b></p>
     </div>
     <p style="margin:18px 0 0;font-size:12px;color:#6b7280">Requiere intervención manual.</p>
   </div>
@@ -594,6 +598,45 @@ def _send_escalation(tc, tech, company, recipient_emails) -> bool:
     <p style="margin:0;font-size:11px;color:#374151">Generado automáticamente · No respondas a este mensaje</p>
   </div>
 </div>"""
+
+
+def _escalation_vars(technician: str, company: str, tech_email: str | None,
+                     alert_count: int, days: int) -> dict:
+    estado = "EXPIRADO" if days <= 0 else f"quedan {days} días"
+    return {
+        "{technician}": technician,
+        "{company}": company,
+        "{tech_email}": tech_email or "—",
+        "{alert_count}": str(alert_count),
+        "{estado}": estado,
+        "{days_remaining}": str(days) if days > 0 else "EXPIRADO",
+    }
+
+
+def escalation_mapping(tc, tech, company) -> dict:
+    """Variables del email de escalado con datos reales del par (técnico, empresa)."""
+    return _escalation_vars(tech.username, company.name, tech.email,
+                            tc.alert_count or 0, tc.days_remaining)
+
+
+def escalation_example_mapping() -> dict:
+    """Datos de ejemplo para la vista previa / prueba de la plantilla de escalado."""
+    return _escalation_vars("tecnico_ejemplo", "Empresa Ejemplo", "tecnico@empresa.com", 3, 5)
+
+
+def _send_escalation(tc, tech, company, recipient_emails) -> bool:
+    """Envía un email de escalado a la lista de destinatarios (admins elegidos
+    y/o emails externos) indicando que un técnico no ha confirmado tras varios
+    avisos. Usa la plantilla editable (Configuración → Escalado) o la de por defecto."""
+    try:
+        from database import get_setting
+        subject = get_setting("escalation_subject") or DEFAULT_ESCALATION_SUBJECT
+        body = get_setting("escalation_body") or DEFAULT_ESCALATION_BODY
+    except Exception:
+        subject, body = DEFAULT_ESCALATION_SUBJECT, DEFAULT_ESCALATION_BODY
+    for k, v in escalation_mapping(tc, tech, company).items():
+        subject = subject.replace(k, v)
+        body = body.replace(k, v)
     sent = False
     for addr in recipient_emails:
         if _send_email(addr, subject, body, kind="escalation"):
