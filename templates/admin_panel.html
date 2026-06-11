@@ -188,7 +188,16 @@
   <div class="lg:col-span-2 glass-panel">
     <div class="panel-header">
       <span class="panel-title">Tendencia de cumplimiento</span>
-      <span class="text-xs text-base-content/25">{{ history.labels|length }} día(s) registrados</span>
+      <div class="flex items-center gap-2">
+        <div class="flex gap-1">
+          {% for d in [7, 30, 60, 90] %}
+          <a href="/admin/?trend={{ d }}"
+             class="text-xs px-2 py-0.5 rounded-md border transition-colors
+                    {% if trend_days == d %}border-blue-400/40 text-blue-300 bg-blue-400/10{% else %}border-white/10 text-base-content/40 hover:text-base-content/70{% endif %}">{{ d }}d</a>
+          {% endfor %}
+        </div>
+        <span class="text-xs text-base-content/25">· {{ history.labels|length }} día(s)</span>
+      </div>
     </div>
     <div class="p-5" style="min-height:240px">
       {% if history.labels|length >= 2 %}
