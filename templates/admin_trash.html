@@ -87,7 +87,7 @@
         <td class="font-medium text-base-content/85">{{ it.name }}</td>
         <td class="text-base-content/45">{{ it.detail or '—' }}</td>
         <td class="text-base-content/50">{{ it.archived_by or '—' }}</td>
-        <td class="mono text-base-content/50 whitespace-nowrap">{{ it.archived_at.strftime('%d/%m/%Y %H:%M') if it.archived_at else '—' }}</td>
+        <td class="mono text-base-content/50 whitespace-nowrap">{{ it.archived_at | fmt_datetime('%d/%m/%Y %H:%M') }}</td>
         <td style="text-align:right">
           <div class="inline-flex items-center gap-1.5">
             <form method="post" action="/admin/trash/{{ it.id }}/restore" style="display:inline">
