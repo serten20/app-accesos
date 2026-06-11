@@ -108,12 +108,18 @@ async def admin_dashboard(request: Request):
         .all()
     )
 
-    # Histórico de cumplimiento para la gráfica de tendencia (últimos 30 días)
+    # Histórico de cumplimiento para la gráfica de tendencia (ventana configurable)
     from models import ComplianceSnapshot
+    try:
+        trend_days = int(request.query_params.get("trend") or 30)
+    except (ValueError, TypeError):
+        trend_days = 30
+    if trend_days not in (7, 30, 60, 90):
+        trend_days = 30
     snaps = (
         db.query(ComplianceSnapshot)
         .order_by(ComplianceSnapshot.snapshot_date.desc())
-        .limit(30)
+        .limit(trend_days)
         .all()
     )
     snaps = list(reversed(snaps))  # cronológico ascendente
@@ -151,6 +157,7 @@ async def admin_dashboard(request: Request):
         "technicians": kpis["technicians"],
         "recent_logs": recent_logs,
         "history": history,
+        "trend_days": trend_days,
         "upcoming": upcoming[:8],
         "exp_overdue": exp_overdue,
         "exp_7": exp_7,
