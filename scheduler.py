@@ -574,30 +574,40 @@ def _should_alert(tc, start_days: int, interval_hours: float) -> bool:
 
 
 DEFAULT_ESCALATION_SUBJECT = "⛔ Escalado — {company} sin rotar ({technician})"
+# Plantilla "a prueba de Outlook Desktop" (motor Word): tablas + bgcolor en todas
+# las celdas, anchos por atributo, ghost table MSO. Tema claro, acento rojo.
 DEFAULT_ESCALATION_BODY = """\
-<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0f1117;color:#a6adbb;border-radius:12px;overflow:hidden">
-  <div style="background:linear-gradient(135deg,#7c2d12,#1e1b4b);padding:24px 32px">
-    <h1 style="margin:0;font-size:18px;color:#fdba74;letter-spacing:1px">⛔ ALERTA ESCALADA</h1>
-    <p style="margin:4px 0 0;font-size:12px;color:#9ca3af">Security Access Manager · Escalado automático</p>
-  </div>
-  <div style="padding:24px 32px">
-    <p style="font-size:14px;color:#e5e7eb;margin:0 0 16px">
-      El técnico <b style="color:#fdba74">{technician}</b> ha recibido
-      <b>{alert_count}</b> avisos sobre el cliente <b style="color:#fdba74">{company}</b>
-      y aún <b>no ha confirmado</b> la rotación.
-    </p>
-    <div style="background:#1a1f2e;border:1px solid #374151;border-radius:8px;padding:14px;font-size:13px">
-      <p style="margin:0 0 6px">· Cliente: <b style="color:#e5e7eb">{company}</b></p>
-      <p style="margin:0 0 6px">· Técnico: <b style="color:#e5e7eb">{technician}</b> ({tech_email})</p>
-      <p style="margin:0 0 6px">· Estado: <b style="color:#f87171">{estado}</b></p>
-      <p style="margin:0">· Avisos enviados sin respuesta: <b style="color:#f87171">{alert_count}</b></p>
-    </div>
-    <p style="margin:18px 0 0;font-size:12px;color:#6b7280">Requiere intervención manual.</p>
-  </div>
-  <div style="background:#0a0d14;padding:14px 32px;text-align:center">
-    <p style="margin:0;font-size:11px;color:#374151">Generado automáticamente · No respondas a este mensaje</p>
-  </div>
-</div>"""
+<!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f1f5f9" style="background-color:#f1f5f9">
+<tr><td align="center" style="padding:24px 10px">
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #e5e7eb">
+    <tr><td bgcolor="#7f1d1d" style="background-color:#7f1d1d;padding:22px 30px;font-family:Arial,Helvetica,sans-serif">
+      <span style="font-size:20px;font-weight:bold;color:#fecaca;letter-spacing:1px">&#9940; ALERTA ESCALADA</span><br/>
+      <span style="font-size:12px;color:#fca5a5">Security Access Manager &middot; Escalado automático</span>
+    </td></tr>
+    <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:24px 30px 8px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#374151;line-height:1.6">
+      El técnico <b style="color:#111827">{technician}</b> ha recibido <b style="color:#b91c1c">{alert_count}</b> avisos sobre el cliente <b style="color:#111827">{company}</b> y aún <b>no ha confirmado</b> la rotación.
+    </td></tr>
+    <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:8px 30px 4px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#fef2f2" style="background-color:#fef2f2;border:1px solid #fecaca">
+        <tr><td style="padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;line-height:1.9">
+          &middot; Cliente: <b style="color:#111827">{company}</b><br/>
+          &middot; Técnico: <b style="color:#111827">{technician}</b> ({tech_email})<br/>
+          &middot; Estado: <b style="color:#b91c1c">{estado}</b><br/>
+          &middot; Avisos enviados sin respuesta: <b style="color:#b91c1c">{alert_count}</b>
+        </td></tr>
+      </table>
+    </td></tr>
+    <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:14px 30px 22px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6b7280">
+      Requiere intervención manual.
+    </td></tr>
+    <tr><td bgcolor="#f9fafb" style="background-color:#f9fafb;padding:14px 30px;text-align:center;font-family:Arial,Helvetica,sans-serif;border-top:1px solid #e5e7eb">
+      <span style="font-size:11px;color:#9ca3af">Generado automáticamente &middot; No respondas a este mensaje</span>
+    </td></tr>
+  </table>
+</td></tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->"""
 
 
 def _escalation_vars(technician: str, company: str, tech_email: str | None,
