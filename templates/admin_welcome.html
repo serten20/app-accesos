@@ -62,6 +62,11 @@
         <svg class="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
         Comportamiento por defecto
       </div>
+      <button type="submit" formaction="/admin/settings/welcome/test" formnovalidate
+              class="btn-save" style="background:rgba(59,130,246,0.12);color:#93c5fd"
+              title="Envía la plantilla de bienvenida con datos de ejemplo a tu propio email">
+        ✉ Enviar prueba a mí
+      </button>
     </div>
     <div class="settings-card-body">
       <label class="flex items-start gap-3 cursor-pointer">
@@ -119,11 +124,6 @@
               class="btn-save" style="background:rgba(255,255,255,0.05);color:rgba(166,173,187,0.8)"
               onclick="return confirm('¿Restaurar el asunto y el cuerpo a la plantilla por defecto? Se perderán tus ediciones actuales.')">
         ↺ Restaurar plantilla por defecto
-      </button>
-      <button type="submit" formaction="/admin/settings/welcome/test" formnovalidate
-              class="btn-save" style="background:rgba(59,130,246,0.12);color:#93c5fd"
-              title="Envía la plantilla con datos de ejemplo a tu propio email">
-        ✉ Enviar prueba a mí
       </button>
     </div>
     <div class="flex items-center gap-4">
