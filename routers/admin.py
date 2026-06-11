@@ -1016,12 +1016,12 @@ async def bulk_import_confirm(request: Request):
 # ── Settings — claves ────────────────────────────────────────────────────────
 
 SMTP_KEYS   = ["smtp_host", "smtp_port", "smtp_user", "smtp_pass", "smtp_from", "smtp_security"]
-ALERT_KEYS  = ["alert_start_days", "alert_interval_hours", "email_subject", "email_body",
-               "alert_escalation_enabled", "alert_escalation_count",
-               "alert_escalation_admin_ids", "alert_escalation_extra_emails"]
+ALERT_KEYS  = ["alert_start_days", "alert_interval_hours", "email_subject", "email_body"]
 REPORT_KEYS = ["report_subject", "report_body", "report_day", "report_hour"]
 WELCOME_KEYS = ["welcome_subject", "welcome_body", "welcome_default_on"]
-ESCALATION_KEYS = ["escalation_subject", "escalation_body"]
+ESCALATION_KEYS = ["escalation_subject", "escalation_body",
+                   "alert_escalation_enabled", "alert_escalation_count",
+                   "alert_escalation_admin_ids", "alert_escalation_extra_emails"]
 GEN_KEYS    = ["timezone", "app_base_url", "confirm_token_hours",
                "threshold_warning", "threshold_critical", "company_name"]
 
@@ -1182,18 +1182,8 @@ async def alerts_settings_get(request: Request):
         cfg["email_body"] = DEFAULT_BODY
     cfg.setdefault("alert_start_days", "7")
     cfg.setdefault("alert_interval_hours", "24")
-    cfg.setdefault("alert_escalation_enabled", "off")
-    cfg.setdefault("alert_escalation_count", "3")
 
     example, preview_vars = _pick_alert_example(db)
-
-    # Admins disponibles como destinatarios del escalado + selección actual
-    from models import User
-    admins = db.query(User).filter(User.role == "admin").order_by(User.username).all()
-    selected_admin_ids = {
-        int(x) for x in (cfg.get("alert_escalation_admin_ids") or "").replace(";", ",").split(",")
-        if x.strip().isdigit()
-    }
 
     return templates.TemplateResponse("admin_alerts.html", {
         "request": request,
@@ -1203,8 +1193,6 @@ async def alerts_settings_get(request: Request):
         "preview_vars": preview_vars,
         "example_label": (f"{example.technician.username} → {example.company.name}"
                           if example else None),
-        "admins": admins,
-        "selected_admin_ids": selected_admin_ids,
         "success": request.query_params.get("success"),
         "error": request.query_params.get("error"),
     })
@@ -1218,26 +1206,12 @@ async def alerts_settings_post(
     alert_interval_hours: str = Form("24"),
     email_subject: str = Form(""),
     email_body: str = Form(""),
-    alert_escalation_enabled: str = Form("off"),
-    alert_escalation_count: str = Form("3"),
-    alert_escalation_admin_ids: list[str] = Form(default=[]),
-    alert_escalation_extra_emails: str = Form(""),
 ):
     db = request.state.db
     set_setting("alert_start_days", alert_start_days)
     set_setting("alert_interval_hours", alert_interval_hours)
     set_setting("email_subject", email_subject)
     set_setting("email_body", email_body)
-    set_setting("alert_escalation_enabled", "on" if alert_escalation_enabled == "on" else "off")
-    set_setting("alert_escalation_count", alert_escalation_count)
-    # Destinatarios del escalado: IDs de admins marcados + emails externos
-    clean_ids = ",".join(x for x in alert_escalation_admin_ids if x.strip().isdigit())
-    clean_emails = ",".join(
-        e.strip() for e in alert_escalation_extra_emails.replace(";", ",").replace("\n", ",").split(",")
-        if e.strip() and "@" in e
-    )
-    set_setting("alert_escalation_admin_ids", clean_ids)
-    set_setting("alert_escalation_extra_emails", clean_emails)
     audit_mod.log(db, "Configuración de alertas a técnicos actualizada", user_id=request.state.current_user.id)
     return RedirectResponse("/admin/settings/alerts?success=1", status_code=302)
 
@@ -1438,18 +1412,31 @@ async def welcome_test_send(
 async def escalation_settings_get(request: Request):
     from scheduler import (DEFAULT_ESCALATION_SUBJECT, DEFAULT_ESCALATION_BODY,
                            ESCALATION_VARS, escalation_example_mapping)
+    db = request.state.db
     cfg = {k: get_setting(k) for k in ESCALATION_KEYS}
     if not cfg.get("escalation_subject"):
         cfg["escalation_subject"] = DEFAULT_ESCALATION_SUBJECT
     if not cfg.get("escalation_body"):
         cfg["escalation_body"] = DEFAULT_ESCALATION_BODY
+    cfg.setdefault("alert_escalation_enabled", "off")
+    cfg.setdefault("alert_escalation_count", "3")
+
+    # Admins disponibles como destinatarios + selección actual
+    from models import User
+    admins = db.query(User).filter(User.role == "admin").order_by(User.username).all()
+    selected_admin_ids = {
+        int(x) for x in (cfg.get("alert_escalation_admin_ids") or "").replace(";", ",").split(",")
+        if x.strip().isdigit()
+    }
+
     return templates.TemplateResponse("admin_escalation.html", {
         "request": request,
         "user": request.state.current_user,
         "cfg": cfg,
         "escalation_vars": ESCALATION_VARS,
         "preview_vars": escalation_example_mapping(),
-        "esc_enabled": (get_setting("alert_escalation_enabled") or "off") == "on",
+        "admins": admins,
+        "selected_admin_ids": selected_admin_ids,
         "success": request.query_params.get("success"),
         "error": request.query_params.get("error"),
     })
@@ -1461,10 +1448,24 @@ async def escalation_settings_post(
     request: Request,
     escalation_subject: str = Form(""),
     escalation_body: str = Form(""),
+    alert_escalation_enabled: str = Form("off"),
+    alert_escalation_count: str = Form("3"),
+    alert_escalation_admin_ids: list[str] = Form(default=[]),
+    alert_escalation_extra_emails: str = Form(""),
 ):
     set_setting("escalation_subject", escalation_subject)
     set_setting("escalation_body", escalation_body)
-    audit_mod.log(request.state.db, "Plantilla de email de escalado actualizada",
+    set_setting("alert_escalation_enabled", "on" if alert_escalation_enabled == "on" else "off")
+    set_setting("alert_escalation_count", alert_escalation_count)
+    # Destinatarios del escalado: IDs de admins marcados + emails externos
+    clean_ids = ",".join(x for x in alert_escalation_admin_ids if x.strip().isdigit())
+    clean_emails = ",".join(
+        e.strip() for e in alert_escalation_extra_emails.replace(";", ",").replace("\n", ",").split(",")
+        if e.strip() and "@" in e
+    )
+    set_setting("alert_escalation_admin_ids", clean_ids)
+    set_setting("alert_escalation_extra_emails", clean_emails)
+    audit_mod.log(request.state.db, "Configuración y plantilla de escalado actualizadas",
                   user_id=request.state.current_user.id)
     return RedirectResponse("/admin/settings/escalation?success=1", status_code=302)
 

@@ -23,6 +23,8 @@
   .btn-save:hover { box-shadow:0 4px 16px rgba(59,130,246,0.35); transform:translateY(-1px); }
   .nav-link { font-size:0.75rem; color:rgba(166,173,187,0.35); transition:color 0.15s; text-decoration:none; }
   .nav-link:hover { color:rgba(166,173,187,0.7); }
+  .info-box { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:0.625rem; padding:0.875rem 1rem; font-size:0.75rem; color:rgba(166,173,187,0.5); line-height:1.6; }
+  .info-box b { color:rgba(166,173,187,0.75); }
 </style>
 
 {% if success == '1' or success == 'restored' %}
@@ -45,15 +47,93 @@
 </div>
 {% endif %}
 
-{% if not esc_enabled %}
-<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);color:#facc15">
-  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-  El escalado está <b>desactivado</b>: aunque edites esta plantilla, no se enviará hasta que lo actives en <a href="/admin/settings/alerts" class="underline">Configuración → Alertas</a>.
-</div>
-{% endif %}
-
 <form method="post" action="/admin/settings/escalation">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+
+  <!-- ── Configuración del escalado ── -->
+  <div class="settings-card mb-5">
+    <div class="settings-card-header">
+      <div class="settings-card-title" style="color:rgba(251,146,60,0.8)">
+        <svg class="h-4 w-4" style="color:#fb923c" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+        </svg>
+        Escalado a Administradores
+      </div>
+      <button type="submit" formaction="/admin/settings/escalation/test" formnovalidate
+              class="btn-save" style="background:rgba(59,130,246,0.12);color:#93c5fd"
+              title="Envía la plantilla de escalado con datos de ejemplo a tu propio email">
+        ✉ Enviar prueba a mí
+      </button>
+    </div>
+    <div class="settings-card-body">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+        <label style="display:flex;align-items:flex-start;gap:0.625rem;padding:0.75rem;border-radius:0.5rem;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer">
+          <input type="checkbox" name="alert_escalation_enabled" class="checkbox checkbox-sm mt-0.5"
+                 style="--chkbg:rgb(251,146,60);--chkfg:white"
+                 {% if cfg.alert_escalation_enabled == 'on' %}checked{% endif %}/>
+          <div>
+            <p class="text-xs font-medium text-base-content/70">Activar escalado</p>
+            <p class="text-xs text-base-content/30 mt-0.5">Avisa a los admins si el técnico ignora los avisos</p>
+          </div>
+        </label>
+
+        <div>
+          <label class="field-label">Escalar tras<span class="help-i" tabindex="0" data-help="Número de avisos enviados a un técnico sin que confirme la rotación, antes de avisar a los administradores. Se escala una sola vez por ciclo; el contador se reinicia cuando el técnico confirma.">i</span></label>
+          <div class="flex items-center gap-2">
+            <input type="number" name="alert_escalation_count" value="{{ cfg.alert_escalation_count or '3' }}"
+                   min="1" max="50" class="field-input" style="max-width:80px"/>
+            <span class="text-sm text-base-content/40">avisos sin confirmar</span>
+          </div>
+          <p class="text-xs text-base-content/25 mt-1.5">Se envía 1 email de escalado a los destinatarios</p>
+        </div>
+
+        <div class="info-box">
+          <p class="font-semibold mb-1.5" style="color:rgba(251,146,60,0.7)">⛔ Cómo funciona</p>
+          <p>• Cuenta los avisos enviados sin que el técnico confirme</p>
+          <p>• Al llegar a <b>{{ cfg.alert_escalation_count or 3 }}</b>, avisa a los destinatarios</p>
+          <p>• Se escala <b>una sola vez</b> por ciclo</p>
+          <p>• El contador se reinicia cuando el técnico confirma</p>
+        </div>
+      </div>
+
+      <!-- ── Destinatarios del escalado ── -->
+      <div class="mt-6 pt-5" style="border-top:1px solid rgba(255,255,255,0.06)">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          <div>
+            <label class="field-label">¿Quién recibe el escalado?</label>
+            <p class="text-xs text-base-content/30 mb-2.5">Marca los administradores que deben recibirlo. Si no marcas ninguno (ni añades emails externos), se avisará a <b>todos</b> los admins activos.</p>
+            <div class="flex flex-col gap-1.5 max-h-44 overflow-y-auto pr-1">
+              {% for a in admins %}
+              <label style="display:flex;align-items:center;gap:0.625rem;padding:0.5rem 0.75rem;border-radius:0.5rem;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer">
+                <input type="checkbox" name="alert_escalation_admin_ids" value="{{ a.id }}"
+                       class="checkbox checkbox-sm" style="--chkbg:rgb(251,146,60);--chkfg:white"
+                       {% if a.id in selected_admin_ids %}checked{% endif %}/>
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-base-content/70 truncate">
+                    {{ a.username }}
+                    {% if not a.is_active %}<span class="text-base-content/25">(inactivo)</span>{% endif %}
+                  </p>
+                  <p class="text-xs text-base-content/30 truncate">{{ a.email or 'sin email — no recibirá' }}</p>
+                </div>
+              </label>
+              {% else %}
+              <p class="text-xs text-base-content/25 py-2">No hay administradores registrados.</p>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div>
+            <label class="field-label">Emails externos (sin cuenta)</label>
+            <p class="text-xs text-base-content/30 mb-2.5">Personas que quieres notificar aunque no tengan acceso a la plataforma. Sepáralos por comas o saltos de línea.</p>
+            <textarea name="alert_escalation_extra_emails" rows="4"
+                      class="field-input font-mono text-xs leading-relaxed resize-none"
+                      placeholder="responsable@empresa.com, soc@partner.com">{{ cfg.alert_escalation_extra_emails or '' }}</textarea>
+            <p class="text-xs text-base-content/25 mt-1.5">Se combinan con los admins marcados arriba.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="settings-card">
     <div class="settings-card-header">
@@ -99,11 +179,6 @@
               class="btn-save" style="background:rgba(255,255,255,0.05);color:rgba(166,173,187,0.8)"
               onclick="return confirm('¿Restaurar el asunto y el cuerpo a la plantilla por defecto? Se perderán tus ediciones actuales.')">
         ↺ Restaurar plantilla por defecto
-      </button>
-      <button type="submit" formaction="/admin/settings/escalation/test" formnovalidate
-              class="btn-save" style="background:rgba(59,130,246,0.12);color:#93c5fd"
-              title="Envía la plantilla con datos de ejemplo a tu propio email">
-        ✉ Enviar prueba a mí
       </button>
     </div>
     <div class="flex items-center gap-4">
