@@ -119,7 +119,7 @@
     <tbody>
       {% for r in rows %}
       <tr>
-        <td class="mono text-base-content/55 whitespace-nowrap">{{ r.created_at.strftime('%d/%m/%Y %H:%M') if r.created_at else '—' }}</td>
+        <td class="mono text-base-content/55 whitespace-nowrap">{{ r.created_at | fmt_datetime('%d/%m/%Y %H:%M') }}</td>
         <td><span class="pill pill-kind">{{ kind_labels.get(r.kind, r.kind) }}</span></td>
         <td class="text-base-content/80">{{ r.to_address }}</td>
         <td>

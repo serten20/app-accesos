@@ -106,7 +106,7 @@
     <tbody>
       {% for r in rows %}
       <tr>
-        <td class="mono text-base-content/55">{{ r.confirmed_at.strftime('%d/%m/%Y %H:%M') if r.confirmed_at else '—' }}</td>
+        <td class="mono text-base-content/55">{{ r.confirmed_at | fmt_datetime('%d/%m/%Y %H:%M') }}</td>
         <td class="font-medium text-base-content/85">
           {% if r.technician %}<a class="lnk" href="/admin/technician/{{ r.technician_id }}">{{ r.technician_name or r.technician.username }}</a>
           {% elif r.technician_name %}<span class="tooltip" data-tip="Técnico eliminado">{{ r.technician_name }}</span>
