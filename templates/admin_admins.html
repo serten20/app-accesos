@@ -63,7 +63,22 @@
 {% if success == 'created' %}
 <div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
   <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-  Administrador creado correctamente.
+  Usuario creado correctamente.
+</div>
+{% elif success == 'created_welcome' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  Usuario creado y email de bienvenida enviado correctamente.
+</div>
+{% elif success == 'created_welcome_fail' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);color:#facc15">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+  Usuario creado, pero el email de bienvenida no se pudo enviar (revisa SMTP). Quedará en el registro de emails para reintento.
+</div>
+{% elif success == 'archived' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+  Usuario archivado a la papelera. Puedes restaurarlo desde <a href="/admin/trash" class="underline">Papelera</a>.
 </div>
 {% elif success == 'report_sent' %}
 <div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);color:#a5b4fc">
@@ -193,6 +208,15 @@
             <div>
               <p class="text-xs font-medium text-base-content/70">También es técnico</p>
               <p class="text-xs text-base-content/30 mt-0.5">Podrá tener empresas asignadas y confirmar rotaciones. Verá "Mis Empresas" en su menú.</p>
+            </div>
+          </label>
+
+          <label class="check-row" style="border-color:rgba(59,130,246,0.2)">
+            <input type="checkbox" name="send_welcome" id="send-welcome-check"
+                   class="checkbox checkbox-sm" style="--chkbg:rgb(59,130,246);--chkfg:white" />
+            <div>
+              <p class="text-xs font-medium text-base-content/70">Enviar email de bienvenida</p>
+              <p class="text-xs text-base-content/30 mt-0.5">Requiere email. Incluye usuario, contraseña temporal y el enlace de acceso a la consola.</p>
             </div>
           </label>
         </div>
