@@ -188,6 +188,8 @@ async def admin_my_companies(request: Request):
     if not user.also_technician:
         return RedirectResponse("/admin", status_code=302)
     tc_list = sorted(user.tc_assocs, key=lambda tc: tc.days_remaining)
+    from thresholds import get_thresholds
+    crit_days, warn_days = get_thresholds()
     return templates.TemplateResponse("dashboard.html", {
         "request":  request,
         "user":     user,
@@ -196,6 +198,8 @@ async def admin_my_companies(request: Request):
         "critical": sum(1 for tc in tc_list if tc.status == "critical"),
         "warning":  sum(1 for tc in tc_list if tc.status == "warning"),
         "ok":       sum(1 for tc in tc_list if tc.status == "ok"),
+        "warn_days": warn_days,
+        "crit_days": crit_days,
     })
 
 
