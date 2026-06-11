@@ -69,10 +69,11 @@ async def lifespan(app: FastAPI):
     db.close()
 
     from scheduler import start_scheduler
-    scheduler = start_scheduler()
+    scheduler = start_scheduler()  # None en los workers que no obtienen el lock
 
     yield
-    scheduler.shutdown()
+    if scheduler:
+        scheduler.shutdown()
 
 
 app = FastAPI(title="Gestión de Accesos", lifespan=lifespan)

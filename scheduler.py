@@ -1158,8 +1158,35 @@ def job_retry_failed_emails():
         db.close()
 
 
+_scheduler_lock_fd = None  # mantiene vivo el lock durante toda la vida del proceso
+
+
+def _acquire_scheduler_lock() -> bool:
+    """Lock entre procesos: garantiza que SOLO UN worker arranque el scheduler.
+    Con uvicorn --workers N cada proceso ejecuta el lifespan; sin esto habría N
+    schedulers y cada tarea (alertas, reportes, reintentos…) se ejecutaría N
+    veces → emails duplicados. Devuelve True si este proceso obtiene el lock."""
+    global _scheduler_lock_fd
+    try:
+        import fcntl
+    except ImportError:
+        return True  # plataformas sin fcntl (p. ej. Windows en desarrollo): asumir 1 proceso
+    try:
+        os.makedirs("data", exist_ok=True)
+        fd = open(os.path.join("data", "scheduler.lock"), "w")
+        fcntl.flock(fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _scheduler_lock_fd = fd  # NO cerrar: el lock se mantiene mientras el FD siga abierto
+        return True
+    except (BlockingIOError, OSError):
+        return False
+
+
 def start_scheduler():
     from apscheduler.triggers.cron import CronTrigger
+    # Solo un worker debe ejecutar las tareas programadas
+    if not _acquire_scheduler_lock():
+        logger.info("Scheduler NO iniciado en este worker (otro proceso tiene el lock de tareas)")
+        return None
     scheduler = BackgroundScheduler()
 
     # Comprobar alertas cada hora.
