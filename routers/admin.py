@@ -221,6 +221,7 @@ async def create_admin(
     receive_reports: str = Form(default="off"),
     also_technician: str = Form(default="off"),
     user_type: str = Form(default="admin"),
+    send_welcome: str = Form(default="off"),
 ):
     db = request.state.db
     email_clean = email.strip() or None
@@ -262,7 +263,17 @@ async def create_admin(
     audit_mod.log(db, f"Usuario de consola creado: {username} — {detail} (por {request.state.current_user.username})",
                   user_id=request.state.current_user.id, level="warning")
     db.commit()
-    return RedirectResponse("/admin/admins?success=created", status_code=302)
+    # Email de bienvenida con credenciales (contraseña aún en claro aquí)
+    welcomed = False
+    if send_welcome == "on" and email_clean:
+        try:
+            from scheduler import send_welcome_email
+            welcomed = send_welcome_email(username, password, email_clean)
+        except Exception:
+            welcomed = False
+    flag = "created_welcome" if (send_welcome == "on" and welcomed) else (
+        "created_welcome_fail" if send_welcome == "on" else "created")
+    return RedirectResponse(f"/admin/admins?success={flag}", status_code=302)
 
 
 @router.post("/admins/{admin_id}/toggle-reports")
@@ -374,11 +385,13 @@ async def delete_admin(request: Request, admin_id: int):
         total_admins = db.query(User).filter(User.role == "admin", User.is_active == True).count()
         if total_admins <= 1:
             return RedirectResponse("/admin/admins?error=last", status_code=302)
-    db.delete(u)
-    audit_mod.log(db, f"Usuario {u.username} ({u.role}) eliminado por {me.username}",
+    uname, urole = u.username, u.role
+    import trash
+    trash.archive_user(db, u, me.username)   # a la papelera (recuperable), no borrado físico
+    audit_mod.log(db, f"Usuario {uname} ({urole}) archivado a papelera por {me.username}",
                   user_id=me.id, level="warning")
     db.commit()
-    return RedirectResponse("/admin/admins", status_code=302)
+    return RedirectResponse("/admin/admins?success=archived", status_code=302)
 
 
 # ── Usuarios / Técnicos ─────────────────────────────────────────────────────

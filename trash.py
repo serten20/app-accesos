@@ -80,18 +80,27 @@ def archive_company(db, company: Company, by_username: str | None) -> TrashItem:
     return item
 
 
-def archive_technician(db, user: User, by_username: str | None) -> TrashItem:
+def archive_user(db, user: User, by_username: str | None) -> TrashItem:
+    """Archiva cualquier usuario (técnico, admin o auditor). El payload guarda su
+    rol, así que la restauración lo recrea tal cual."""
     payload = _technician_payload(user)
+    etype = user.role if user.role in ("admin", "auditor") else "technician"
+    role_label = {"admin": "Administrador", "auditor": "Auditor"}.get(user.role, "Técnico")
+    detail = (user.email or "sin email") if etype == "technician" else f"{role_label} · {user.email or 'sin email'}"
     item = TrashItem(
-        entity_type="technician", original_id=user.id, name=user.username,
-        detail=(user.email or "sin email"),
-        payload=json.dumps(payload), archived_by=by_username,
+        entity_type=etype, original_id=user.id, name=user.username,
+        detail=detail, payload=json.dumps(payload), archived_by=by_username,
     )
     db.add(item)
     db.delete(user)
     db.commit()
-    logger.info("Técnico archivado a papelera: %s (por %s)", user.username, by_username)
+    logger.info("Usuario archivado a papelera: %s (%s) (por %s)", user.username, user.role, by_username)
     return item
+
+
+def archive_technician(db, user: User, by_username: str | None) -> TrashItem:
+    """Compatibilidad: archiva un técnico (delega en archive_user)."""
+    return archive_user(db, user, by_username)
 
 
 # ── Restaurar ────────────────────────────────────────────────────────────────
@@ -105,8 +114,8 @@ def restore_item(db, item: TrashItem) -> dict:
         data = json.loads(item.payload)
         if item.entity_type == "company":
             return _restore_company(db, item, data)
-        elif item.entity_type == "technician":
-            return _restore_technician(db, item, data)
+        elif item.entity_type in ("technician", "admin", "auditor"):
+            return _restore_technician(db, item, data)  # restaura el usuario con su rol guardado
         return {"ok": False, "error": "Tipo desconocido"}
     except Exception as e:
         db.rollback()
