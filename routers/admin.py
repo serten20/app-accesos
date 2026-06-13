@@ -394,6 +394,27 @@ async def delete_admin(request: Request, admin_id: int):
     return RedirectResponse("/admin/admins?success=archived", status_code=302)
 
 
+@router.post("/admins/{admin_id}/reset-password")
+@require_admin
+async def admin_reset_password(request: Request, admin_id: int, new_password: str = Form(...)):
+    """Respaldo: un admin restablece la contraseña de otro admin/auditor (por si
+    olvidó la suya y no puede usar el enlace por email)."""
+    db = request.state.db
+    me = request.state.current_user
+    if len(new_password) < 8:
+        return RedirectResponse("/admin/admins?error=password_short", status_code=302)
+    u = db.query(User).filter(User.id == admin_id, User.role.in_(["admin", "auditor"])).first()
+    if not u:
+        return RedirectResponse("/admin/admins?error=notfound", status_code=302)
+    u.hashed_password = hash_password(new_password)
+    u.must_change_password = True            # que la cambie en el próximo login
+    u.tokens_valid_from = datetime.utcnow()  # cierra sus sesiones activas
+    audit_mod.log(db, f"Contraseña de {u.username} ({u.role}) restablecida por {me.username}",
+                  user_id=me.id, level="warning")
+    db.commit()
+    return RedirectResponse("/admin/admins?success=pwd_reset", status_code=302)
+
+
 # ── Usuarios / Técnicos ─────────────────────────────────────────────────────
 
 @router.get("/users", response_class=HTMLResponse)
@@ -1721,6 +1742,24 @@ async def database_remote_test(
     return RedirectResponse(f"/admin/settings/database?{flag}", status_code=302)
 
 
+@router.post("/settings/database/remote-reset")
+@require_admin
+async def database_remote_reset(request: Request):
+    """Desactiva y BORRA toda la configuración de copia externa (host, usuario,
+    contraseña, carpeta…) y limpia los estados de último envío/prueba. Útil
+    cuando un destino mal configurado falla en cada backup."""
+    import remote_backup
+    for key, default in remote_backup.REMOTE_DEFAULTS.items():
+        set_setting(key, default)            # vuelve a los valores por defecto (enabled=off, host="", …)
+    for key in ("remote_backup_pass",
+                "remote_backup_last_status", "remote_backup_last_detail", "remote_backup_last_at",
+                "remote_backup_test_status", "remote_backup_test_detail", "remote_backup_test_at"):
+        set_setting(key, "")                 # borra credencial y estados previos
+    audit_mod.log(request.state.db, "Copia externa (SFTP/FTP) restablecida (configuración borrada)",
+                  user_id=request.state.current_user.id, level="warning")
+    return RedirectResponse("/admin/settings/database?success=remote_reset", status_code=302)
+
+
 @router.get("/settings/database/metrics.json")
 @require_viewer
 async def database_metrics_json(request: Request):
@@ -2283,7 +2322,7 @@ async def notifications_mark_read(request: Request):
 EMAIL_KIND_LABELS = {
     "alert": "Alerta técnico", "report": "Reporte", "escalation": "Escalado",
     "db_alert": "Alerta BD", "smtp_alert": "Aviso SMTP", "test": "Prueba",
-    "welcome": "Bienvenida", "other": "Otro",
+    "welcome": "Bienvenida", "password_reset": "Reset contraseña", "other": "Otro",
 }
 
 

@@ -395,6 +395,44 @@ def send_welcome_email(username: str, password: str, email: str | None) -> bool:
     return _send_email(email, subj, body, kind="welcome")
 
 
+def send_password_reset_email(username: str, email: str, reset_url: str, hours: int = 1) -> bool:
+    """Envía el enlace de reseteo de contraseña. Plantilla clara a prueba de
+    Outlook (tablas + bgcolor). Requiere email."""
+    if not email:
+        return False
+    subject = "🔑 Restablecer tu contraseña — Access Manager"
+    cta = _cta_button(reset_url, "&#128273; Restablecer contraseña", color="#2563eb")
+    body = f"""\
+<!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f1f5f9" style="background-color:#f1f5f9">
+<tr><td align="center" style="padding:24px 10px">
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #e5e7eb">
+    <tr><td bgcolor="#1e1b4b" style="background-color:#1e1b4b;padding:22px 30px;font-family:Arial,Helvetica,sans-serif">
+      <span style="font-size:20px;font-weight:bold;color:#93c5fd;letter-spacing:1px">ACCESOS</span><br/>
+      <span style="font-size:12px;color:#c7d2fe">Security Access Manager &middot; Restablecer contraseña</span>
+    </td></tr>
+    <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:24px 30px 8px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#374151;line-height:1.6">
+      Hola <b style="color:#111827">{username}</b>, hemos recibido una solicitud para restablecer la contraseña de tu cuenta.
+      Pulsa el botón para elegir una nueva. El enlace caduca en <b>{hours} hora(s)</b> y solo puede usarse una vez.
+    </td></tr>
+    <tr><td bgcolor="#ffffff" align="center" style="background-color:#ffffff;padding:14px 30px 6px">{cta}</td></tr>
+    <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:6px 30px 18px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6b7280;line-height:1.6">
+      Si el botón no funciona, copia este enlace en tu navegador:<br/>
+      <span style="color:#2563eb;word-break:break-all">{reset_url}</span>
+    </td></tr>
+    <tr><td bgcolor="#fffbeb" style="background-color:#fffbeb;padding:12px 30px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#92400e;border-top:1px solid #fde68a">
+      Si <b>no</b> has solicitado este cambio, ignora este mensaje: tu contraseña no cambiará.
+    </td></tr>
+    <tr><td bgcolor="#f9fafb" style="background-color:#f9fafb;padding:14px 30px;text-align:center;font-family:Arial,Helvetica,sans-serif;border-top:1px solid #e5e7eb">
+      <span style="font-size:11px;color:#9ca3af">Generado automáticamente &middot; No respondas a este mensaje</span>
+    </td></tr>
+  </table>
+</td></tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->"""
+    return _send_email(email, subject, body, kind="password_reset")
+
+
 def _smtp_security() -> str:
     """Modo de seguridad SMTP: auto | starttls | ssl | none."""
     try:

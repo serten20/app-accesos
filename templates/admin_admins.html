@@ -95,6 +95,11 @@
   <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
   Técnico promovido a administrador (mantiene el rol de técnico). Aparece aquí con el badge 🔧 TÉCNICO.
 </div>
+{% elif success == 'pwd_reset' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+  Contraseña restablecida. El usuario deberá cambiarla en su próximo inicio de sesión y se han cerrado sus sesiones activas.
+</div>
 {% endif %}
 
 {% if error == 'duplicate' %}
@@ -116,6 +121,11 @@
 <div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171">
   <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
   No puedes eliminar el último administrador activo del sistema.
+</div>
+{% elif error == 'password_short' %}
+<div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171">
+  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  La contraseña debe tener al menos 8 caracteres.
 </div>
 {% elif error == 'no_email' %}
 <div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.2);color:#facc15">
@@ -340,9 +350,17 @@
               </form>
               {% endif %}
 
-              <!-- Eliminar -->
+              <!-- Resetear contraseña (respaldo si la olvidó) -->
+              <form method="post" action="/admin/admins/{{ a.id }}/reset-password" onsubmit="return askResetPwd(this)">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+                <input type="hidden" name="new_password" />
+                <button class="action-btn" style="color:rgba(147,197,253,0.85);border-color:rgba(59,130,246,0.25)"
+                        title="Establecer una contraseña temporal para {{ a.username }} (la deberá cambiar al entrar)">🔑 Reset clave</button>
+              </form>
+
+              <!-- Eliminar (archiva a la papelera, recuperable) -->
               <form method="post" action="/admin/admins/{{ a.id }}/delete"
-                    onsubmit="return confirm('¿Eliminar usuario {{ a.username }}? Esta acción no se puede deshacer.')">
+                    onsubmit="return confirm('¿Eliminar usuario {{ a.username }}? Se moverá a la Papelera (podrás restaurarlo).')">
                 <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
                 <button class="action-btn action-delete">Eliminar</button>
               </form>
@@ -368,6 +386,14 @@
 
 {% block scripts %}
 <script>
+function askResetPwd(form) {
+  const p = prompt('Nueva contraseña temporal para este usuario (mínimo 8 caracteres).\nLa deberá cambiar en su próximo inicio de sesión:');
+  if (p === null) return false;
+  if (p.length < 8) { alert('La contraseña debe tener al menos 8 caracteres.'); return false; }
+  form.new_password.value = p;
+  return true;
+}
+
 const receiveReportsCheck = document.getElementById('receive-reports-check');
 const emailInput          = document.getElementById('email-input');
 const emailNote           = document.getElementById('email-note');
