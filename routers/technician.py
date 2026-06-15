@@ -80,6 +80,12 @@ async def confirm_change(request: Request, company_id: int):
     tc.alert_count = 0
     tc.escalated_at = None
 
+    # Rodar el ciclo de la empresa por si esta confirmación completa el ciclo
+    # (la rotación recién añadida debe ser visible para el cálculo → flush)
+    from models import roll_company_cycle
+    db.flush()
+    roll_company_cycle(db, tc.company)
+
     audit_mod.log(
         db,
         f"Contraseña confirmada: {tc.company.name}" + (f" (con {days_late}d de retraso)" if days_late else ""),

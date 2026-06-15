@@ -72,6 +72,10 @@ async def confirm_post(request: Request, token: str):
         tc.last_changed = date.today()
         tc.alert_count = 0
         tc.escalated_at = None
+        # Rodar el ciclo de la empresa si esta confirmación lo completa
+        from models import roll_company_cycle
+        db.flush()
+        roll_company_cycle(db, tc.company)
         audit_mod.log(
             db,
             f"Rotación confirmada desde email: {company_name} por {tech_name}"

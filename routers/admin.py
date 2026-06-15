@@ -542,6 +542,9 @@ async def promote_tech_to_admin(request: Request, user_id: int):
 async def list_companies(request: Request):
     db = request.state.db
     companies = db.query(Company).all()
+    from models import roll_company_cycle
+    if sum(roll_company_cycle(db, c) for c in companies):
+        db.commit()
     technicians = db.query(User).filter(_assignable_tech_filter(), User.is_active == True).all()
     return templates.TemplateResponse("admin_companies.html", {
         "request": request,
@@ -614,6 +617,9 @@ async def company_detail(request: Request, company_id: int):
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
         return RedirectResponse("/admin/companies", status_code=302)
+    from models import roll_company_cycle
+    if roll_company_cycle(db, company):
+        db.commit()
     all_techs = db.query(User).filter(_assignable_tech_filter(), User.is_active == True).all()
     assigned_ids = {t.id for t in company.technicians}
 

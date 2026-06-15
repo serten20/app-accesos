@@ -131,15 +131,9 @@ class Company(Base):
 
     @property
     def status(self):
-        """Peor estado entre todos los técnicos asignados."""
-        if self.tc_assocs:
-            statuses = [tc.status for tc in self.tc_assocs]
-            if "critical" in statuses:
-                return "critical"
-            if "warning" in statuses:
-                return "warning"
-            return "ok"
-        # Sin técnicos → usar last_changed global
+        """Color por umbrales sobre la cuenta atrás del ciclo (ver days_remaining).
+        El ciclo rueda automáticamente (roll_company_cycle) cuando todos los
+        técnicos confirman, así que aquí basta clasificar los días restantes."""
         return classify(self.days_remaining)
 
     @property
@@ -256,3 +250,58 @@ class AuditLog(Base):
 
     user    = relationship("User", back_populates="audit_logs")
     company = relationship("Company", back_populates="audit_logs")
+
+
+# ── Rodaje del ciclo de la empresa ───────────────────────────────────────────
+def roll_company_cycle(db, company) -> bool:
+    """Avanza `company.last_changed` en pasos de `expiry_days` (alineados a la
+    fecha de inicio) mientras el ciclo que termina haya sido confirmado por
+    TODOS los técnicos asignados. Sin técnicos asignados, el ciclo rueda siempre
+    (nunca expira). Si falta algún técnico por confirmar, se detiene y la empresa
+    queda 'expirada' hasta que todos confirmen.
+
+    Un ciclo [cstart, cstart+P) se considera confirmado si cada técnico asignado
+    tiene al menos una rotación real (RotationHistory) con `rotated_on >= cstart`.
+    No hace commit (lo hace el llamador). Devuelve True si cambió `last_changed`."""
+    from datetime import timedelta
+    P = company.expiry_days or 0
+    if P <= 0 or not company.last_changed:
+        return False
+    today = date.today()
+    deadline = company.last_changed + timedelta(days=P)
+    if today < deadline:
+        return False  # aún dentro del ciclo actual; nada que rodar
+
+    tech_ids = [tc.technician_id for tc in company.tc_assocs]
+    rows = None
+    changed = False
+    guard = 0
+    while today >= deadline and guard < 2000:
+        cstart = company.last_changed
+        if tech_ids:
+            if rows is None:
+                rows = db.query(
+                    RotationHistory.technician_id, RotationHistory.rotated_on
+                ).filter(RotationHistory.company_id == company.id).all()
+            confirmed = {t for (t, d) in rows if d and d >= cstart}
+            all_confirmed = all(t in confirmed for t in tech_ids)
+        else:
+            all_confirmed = True  # sin técnicos → rueda solo
+        if not all_confirmed:
+            break
+        company.last_changed = deadline
+        deadline = company.last_changed + timedelta(days=P)
+        changed = True
+        guard += 1
+    return changed
+
+
+def roll_all_company_cycles(db) -> int:
+    """Aplica roll_company_cycle a todas las empresas. Devuelve cuántas cambiaron."""
+    n = 0
+    for c in db.query(Company).all():
+        if roll_company_cycle(db, c):
+            n += 1
+    if n:
+        db.commit()
+    return n

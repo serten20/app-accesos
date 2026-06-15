@@ -1046,8 +1046,12 @@ def job_daily_snapshot():
     de tendencia. Idempotente: una fila por día, siempre con el estado más reciente."""
     from database import SessionLocal
     from compliance import take_compliance_snapshot
+    from models import roll_all_company_cycles
     db = SessionLocal()
     try:
+        rolled = roll_all_company_cycles(db)   # rueda ciclos confirmados / sin técnicos
+        if rolled:
+            logger.info("Ciclos de empresa rodados: %d", rolled)
         snap = take_compliance_snapshot(db)
         logger.info("Snapshot de cumplimiento %s: %d%%", snap.snapshot_date, snap.compliance_pct)
     except Exception as e:
