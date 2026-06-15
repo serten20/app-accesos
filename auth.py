@@ -15,6 +15,33 @@ pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 # Serializer dedicado para los enlaces de confirmación rápida desde el email
 confirm_serializer = URLSafeTimedSerializer(SECRET_KEY, salt="confirm-rotation")
+# Serializer dedicado para los enlaces de reseteo de contraseña (salt distinto)
+reset_serializer = URLSafeTimedSerializer(SECRET_KEY, salt="password-reset")
+
+
+def password_fingerprint(hashed_password: str) -> str:
+    """Huella corta del hash actual de la contraseña. Se incrusta en el token de
+    reseteo para que el enlace sea de UN SOLO USO: al cambiar la contraseña la
+    huella cambia y los enlaces antiguos quedan inválidos."""
+    import hashlib
+    return hashlib.sha256((hashed_password or "").encode()).hexdigest()[:16]
+
+
+def create_reset_token(user_id: int, hashed_password: str) -> str:
+    """Token firmado y con caducidad para el enlace de reseteo de contraseña."""
+    return reset_serializer.dumps({"u": user_id, "h": password_fingerprint(hashed_password)})
+
+
+def decode_reset_token(token: str, max_age_seconds: int):
+    """Devuelve (user_id, fingerprint, reason). reason: None si válido,
+    'expired' si caducó, 'invalid' si la firma no es válida."""
+    try:
+        data = reset_serializer.loads(token, max_age=max_age_seconds)
+        return data.get("u"), data.get("h"), None
+    except SignatureExpired:
+        return None, None, "expired"
+    except (BadSignature, Exception):
+        return None, None, "invalid"
 
 
 def create_confirm_token(technician_id: int, company_id: int) -> str:

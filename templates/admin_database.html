@@ -53,11 +53,12 @@
 </style>
 
 <!-- ── Flash messages ── -->
-{% if success == '1' or success == 'remote' or success == 'remote_test_ok' %}
+{% if success == '1' or success == 'remote' or success == 'remote_test_ok' or success == 'remote_reset' %}
 <div class="flex items-center gap-2 mb-5 px-4 py-3 rounded-xl text-sm" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);color:#4ade80">
   <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
   {% if success == 'remote' %}Configuración de copia externa guardada correctamente.
   {% elif success == 'remote_test_ok' %}Prueba de conexión correcta. Mira el detalle en el panel de la copia externa.
+  {% elif success == 'remote_reset' %}Copia externa restablecida: se ha desactivado y borrado la configuración. Ya no se intentarán envíos remotos.
   {% else %}Configuración de base de datos guardada correctamente.{% endif %}
 </div>
 {% endif %}
@@ -496,6 +497,12 @@
                     class="btn-action w-auto px-4" style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.25);color:#a5b4fc"
                     title="Conecta, comprueba la carpeta y prueba a escribir un fichero (sin subir el backup)">
               🔌 Probar conexión
+            </button>
+            <button type="submit" formaction="/admin/settings/database/remote-reset" formnovalidate
+                    class="btn-action w-auto px-4" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:#f87171"
+                    title="Desactiva y borra toda la configuración de copia externa"
+                    onclick="return confirm('¿Restablecer la copia externa? Se desactivará y se borrará host, usuario, contraseña y carpeta. No afecta a los backups locales.')">
+              🗑 Restablecer
             </button>
           </div>
           <p class="text-xs text-base-content/25">«Probar conexión» <b>guarda y prueba</b> la configuración actual (no hace falta guardar antes). Comprueba conexión, carpeta y <b>permiso de escritura</b> sin subir el backup real.</p>

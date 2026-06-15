@@ -1,7 +1,7 @@
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-from datetime import datetime
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
@@ -48,6 +48,7 @@ from models import Base
 from auth import (
     verify_password, hash_password, create_session_token,
     get_current_user, seed_admin, SESSION_COOKIE, require_login,
+    create_reset_token, decode_reset_token, password_fingerprint,
 )
 from models import User
 from routers import technician, admin, reports, confirm
@@ -209,6 +210,116 @@ async def logout(request: Request):
     response = RedirectResponse("/login", status_code=302)
     response.delete_cookie(SESSION_COOKIE)
     return response
+
+
+# ── Reseteo de contraseña (autoservicio por email, enlace firmado de 1 uso) ──
+RESET_MAX_AGE = 60 * 60  # 1 hora
+
+
+def _reset_throttled(db, ip: str) -> bool:
+    """Limita solicitudes de reseteo por IP (anti-abuso/enumeración)."""
+    if not ip:
+        return False
+    from models import AuditLog
+    since = datetime.utcnow() - timedelta(minutes=15)
+    n = (db.query(AuditLog).filter(
+            AuditLog.action.like("Solicitud de reseteo%"),
+            AuditLog.ip_address == ip,
+            AuditLog.timestamp >= since).count())
+    return n >= 5
+
+
+@app.get("/forgot", response_class=HTMLResponse)
+async def forgot_get(request: Request):
+    from database import get_setting
+    return templates.TemplateResponse("forgot.html", {
+        "request": request, "sent": False,
+        "company_name": get_setting("company_name") or "",
+    })
+
+
+@app.post("/forgot", response_class=HTMLResponse)
+async def forgot_post(request: Request, identifier: str = Form(...)):
+    from database import get_setting
+    db = SessionLocal()
+    ip = _client_ip(request)
+    try:
+        ctx = {"request": request, "sent": True, "company_name": get_setting("company_name") or ""}
+        if _reset_throttled(db, ip):
+            return templates.TemplateResponse("forgot.html", ctx)  # mismo mensaje, no revela nada
+        ident = (identifier or "").strip()
+        if ident:
+            user = db.query(User).filter(
+                (User.username == ident) | (User.email == ident),
+                User.is_active == True,
+            ).first()
+            # No revelamos si existe o no. Solo enviamos si hay cuenta con email.
+            if user and user.email:
+                base = (get_setting("app_base_url") or "").rstrip("/")
+                token = create_reset_token(user.id, user.hashed_password)
+                reset_url = f"{base}/reset/{token}" if base else f"/reset/{token}"
+                try:
+                    from scheduler import send_password_reset_email
+                    send_password_reset_email(user.username, user.email, reset_url, hours=RESET_MAX_AGE // 3600)
+                except Exception:
+                    logger.exception("No se pudo enviar el email de reseteo")
+                audit_mod.log(db, f"Solicitud de reseteo de contraseña para {user.username}",
+                              user_id=user.id, level="warning", ip=ip)
+        return templates.TemplateResponse("forgot.html", ctx)
+    finally:
+        db.close()
+
+
+def _reset_render(request, state, **extra):
+    from database import get_setting
+    return templates.TemplateResponse("reset.html", {
+        "request": request, "state": state,
+        "company_name": get_setting("company_name") or "", **extra,
+    })
+
+
+@app.get("/reset/{token}", response_class=HTMLResponse)
+async def reset_get(request: Request, token: str):
+    uid, fp, reason = decode_reset_token(token, RESET_MAX_AGE)
+    if reason:
+        return _reset_render(request, reason)
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == uid, User.is_active == True).first()
+        if not user or password_fingerprint(user.hashed_password) != fp:
+            return _reset_render(request, "invalid")  # enlace ya usado o caducado
+        return _reset_render(request, "form", token=token, username=user.username)
+    finally:
+        db.close()
+
+
+@app.post("/reset/{token}", response_class=HTMLResponse)
+async def reset_post(request: Request, token: str,
+                     new_password: str = Form(...), confirm_password: str = Form(...)):
+    uid, fp, reason = decode_reset_token(token, RESET_MAX_AGE)
+    if reason:
+        return _reset_render(request, reason)
+    db = SessionLocal()
+    ip = _client_ip(request)
+    try:
+        user = db.query(User).filter(User.id == uid, User.is_active == True).first()
+        if not user or password_fingerprint(user.hashed_password) != fp:
+            return _reset_render(request, "invalid")
+        if len(new_password) < 8:
+            return _reset_render(request, "form", token=token, username=user.username,
+                                 error="La contraseña debe tener al menos 8 caracteres.")
+        if new_password != confirm_password:
+            return _reset_render(request, "form", token=token, username=user.username,
+                                 error="Las contraseñas no coinciden.")
+        user.hashed_password = hash_password(new_password)
+        user.must_change_password = False
+        user.tokens_valid_from = datetime.utcnow()  # cierra sesiones activas
+        audit_mod.log(db, f"Contraseña restablecida vía enlace por {user.username}",
+                      user_id=user.id, level="warning", ip=ip)
+        db.commit()
+        return _reset_render(request, "done")
+    finally:
+        db.close()
 
 
 @app.post("/onboarding/done")
