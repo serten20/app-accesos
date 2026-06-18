@@ -491,6 +491,36 @@ async def reset_password(
     return RedirectResponse(f"/admin/technician/{user_id}?success=password_reset", status_code=302)
 
 
+@router.post("/users/{user_id}/resend-welcome")
+@require_admin
+async def resend_welcome(request: Request, user_id: int):
+    """Recordatorio de acceso para un técnico que aún no ha entrado/cambiado la
+    contraseña: genera una contraseña temporal NUEVA y reenvía el email de
+    bienvenida (usuario + contraseña + enlace). Invalida sesiones previas."""
+    db = request.state.db
+    u = db.query(User).filter(User.id == user_id, User.role == "technician").first()
+    if not u:
+        return RedirectResponse("/admin/users?error=notfound", status_code=302)
+    if not u.email:
+        return RedirectResponse("/admin/users?error=resend_no_email", status_code=302)
+    new_pwd = _secrets.token_urlsafe(9)
+    u.hashed_password = hash_password(new_pwd)
+    u.must_change_password = True
+    u.tokens_valid_from = datetime.utcnow()   # invalida cualquier sesión previa
+    audit_mod.log(db, f"Reenvío de acceso (nueva contraseña temporal) a {u.username}",
+                  user_id=request.state.current_user.id, level="warning")
+    db.commit()
+    welcomed = False
+    try:
+        from scheduler import send_welcome_email
+        welcomed = send_welcome_email(u.username, new_pwd, u.email)
+    except Exception:
+        welcomed = False
+    return RedirectResponse(
+        "/admin/users?success=resent" if welcomed else "/admin/users?error=resend_fail",
+        status_code=302)
+
+
 @router.post("/users/{user_id}/toggle")
 @require_admin
 async def toggle_user(request: Request, user_id: int):

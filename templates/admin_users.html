@@ -23,6 +23,13 @@
 {% if request.query_params.get('success') == 'demoted' %}
 <div class="alert alert-info mb-4 text-sm">↓ Administrador degradado a técnico. Ahora aparece en esta lista.</div>
 {% endif %}
+{% if request.query_params.get('success') == 'resent' %}
+<div class="alert alert-success mb-4 text-sm">✓ Acceso reenviado: se generó una nueva contraseña temporal y se envió el email de bienvenida.</div>
+{% elif request.query_params.get('error') == 'resend_fail' %}
+<div class="alert alert-warning mb-4 text-sm">Se generó la nueva contraseña, pero <b>no se pudo enviar</b> el email (revisa SMTP y la URL pública). El motivo está en el <a href="/admin/emails" class="underline">Registro de Emails</a>.</div>
+{% elif request.query_params.get('error') == 'resend_no_email' %}
+<div class="alert alert-error mb-4 text-sm">Ese técnico no tiene email configurado; no se puede reenviar el acceso.</div>
+{% endif %}
 
 <div class="flex justify-end gap-2 mb-3">
   <a href="/admin/export/technicians.csv" class="btn btn-sm btn-outline gap-1.5"
@@ -131,6 +138,16 @@
               <td class="text-right">
                 <div class="flex gap-1 justify-end">
                   <a href="/admin/technician/{{ t.id }}" class="btn btn-xs btn-ghost text-primary">Ver</a>
+                  {% if t.must_change_password and t.email %}
+                  <form method="post" action="/admin/users/{{ t.id }}/resend-welcome"
+                        onsubmit="return confirm('¿Reenviar el acceso a {{ t.username }}? Se generará una nueva contraseña temporal y se le enviará el email de bienvenida (la anterior dejará de ser válida).')">
+                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
+                    <button class="btn btn-xs btn-ghost btn-square text-info" aria-label="Reenviar acceso"
+                            title="Aún no ha accedido: reenviar email de acceso con una contraseña temporal nueva">
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    </button>
+                  </form>
+                  {% endif %}
                   <form method="post" action="/admin/users/{{ t.id }}/promote"
                         onsubmit="return confirm('¿Promover a {{ t.username }} a ADMINISTRADOR? Tendrá acceso total al sistema (seguirá siendo técnico).')">
                     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}"/>
