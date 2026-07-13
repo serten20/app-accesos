@@ -199,33 +199,30 @@ async def report_urgent(request: Request):
     urgent = [c for c in companies if c.status in ("critical", "warning")]
     urgent_sorted = sorted(urgent, key=lambda c: (0 if c.status == "critical" else 1, c.days_remaining))
 
-    # Para cada empresa urgente, armar detalle de técnicos con su rendimiento global
+    # Para cada empresa urgente, listar SOLO los técnicos pendientes EN ESA empresa
+    # (crítico/atención según su propio TechnicianCompany). Los que ya confirmaron
+    # (OK en esta empresa) no son el problema y no se incluyen.
     urgent_detail = []
     for company in urgent_sorted:
-        tech_rows = []
-        for tech in company.technicians:
-            tc = tech.companies
-            t_crit = sum(1 for x in tc if x.status == "critical")
-            t_warn = sum(1 for x in tc if x.status == "warning")
-            tech_rows.append({
-                "tech": tech,
-                "total": len(tc),
-                "critical": t_crit,
-                "warning": t_warn,
-                "ok": len(tc) - t_crit - t_warn,
-                "is_compliant": t_crit == 0,
-            })
+        pend = [tc for tc in company.tc_assocs if tc.status in ("critical", "warning")]
+        pend.sort(key=lambda tc: tc.days_remaining)
+        tech_rows = [{
+            "tech": tc.technician,
+            "status": tc.status,                 # 'critical' | 'warning' (en esta empresa)
+            "days_remaining": tc.days_remaining,
+        } for tc in pend]
         urgent_detail.append({"company": company, "techs": tech_rows})
 
     # Stats para el resumen superior
     n_critical = sum(1 for c in urgent if c.status == "critical")
     n_warning  = sum(1 for c in urgent if c.status == "warning")
 
-    # Técnicos afectados únicos
+    # Técnicos afectados únicos: solo los pendientes en alguna empresa urgente
     affected_tech_ids = set()
     for company in urgent:
-        for t in company.technicians:
-            affected_tech_ids.add(t.id)
+        for tc in company.tc_assocs:
+            if tc.status in ("critical", "warning"):
+                affected_tech_ids.add(tc.technician_id)
 
     return templates.TemplateResponse("report_urgent.html", {
         "request": request,
