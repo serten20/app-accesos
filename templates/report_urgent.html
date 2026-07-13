@@ -93,24 +93,23 @@
                 {% for row in item.techs %}
                 <div class="flex items-center gap-2">
                   <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0
-                    {% if row.is_compliant %}bg-success/10 text-success border border-success/30
-                    {% else %}bg-error/10 text-error border border-error/30{% endif %}">
+                    {% if row.status == 'critical' %}bg-error/10 text-error border border-error/30
+                    {% else %}bg-warning/10 text-warning border border-warning/30{% endif %}">
                     <span class="text-xs font-bold">{{ row.tech.username[0]|upper }}</span>
                   </div>
                   <div class="min-w-0">
                     <span class="text-xs font-medium">{{ row.tech.username }}</span>
                     <div class="flex gap-1 mt-0.5 flex-wrap">
-                      {% if row.critical > 0 %}<span class="badge badge-error badge-xs">{{ row.critical }} crit.</span>{% endif %}
-                      {% if row.warning > 0 %}<span class="badge badge-warning badge-xs">{{ row.warning }} av.</span>{% endif %}
-                      {% if row.is_compliant %}<span class="badge badge-success badge-xs">OK</span>{% endif %}
-                      <span class="badge badge-ghost badge-xs">{{ row.total }} emp.</span>
+                      {% if row.status == 'critical' %}<span class="badge badge-error badge-xs">CRÍTICO</span>
+                      {% else %}<span class="badge badge-warning badge-xs">ATENCIÓN</span>{% endif %}
+                      <span class="badge badge-ghost badge-xs">{% if row.days_remaining <= 0 %}Expirado{% else %}{{ row.days_remaining }}d{% endif %}</span>
                     </div>
                   </div>
                 </div>
                 {% endfor %}
               </div>
               {% else %}
-              <span class="text-xs text-error/60 italic">Sin asignar</span>
+              <span class="text-xs text-base-content/40 italic">Todos los técnicos han confirmado</span>
               {% endif %}
             </td>
             <td class="py-3">
