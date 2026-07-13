@@ -56,14 +56,11 @@ WELCOME_VARS = {
     "{app_name}": "Nombre de la aplicación",
 }
 
-# ── Variables para email de escalado a administradores ───────────────────────
+# ── Variables para email de escalado a administradores (agrupado por empresa) ─
 ESCALATION_VARS = {
-    "{technician}": "Nombre del técnico que no confirma",
     "{company}": "Nombre de la empresa/cliente",
-    "{tech_email}": "Email del técnico",
-    "{alert_count}": "Nº de avisos enviados sin confirmar",
-    "{estado}": "Estado: 'quedan X días' o 'EXPIRADO'",
-    "{days_remaining}": "Días restantes (número)",
+    "{n_tecnicos}": "Número de técnicos escalados en esta empresa",
+    "{tecnicos}": "Tabla con los técnicos pendientes (nombre, email, estado, avisos)",
 }
 
 DEFAULT_REPORT_SUBJECT = "📊 Reporte de Accesos — {fecha} — Cumplimiento {compliance_pct}%"
@@ -611,9 +608,10 @@ def _should_alert(tc, start_days: int, interval_hours: float) -> bool:
         return elapsed >= interval_hours
 
 
-DEFAULT_ESCALATION_SUBJECT = "⛔ Escalado — {company} sin rotar ({technician})"
+DEFAULT_ESCALATION_SUBJECT = "⛔ Escalado — {company}: {n_tecnicos} técnico(s) sin rotar"
 # Plantilla "a prueba de Outlook Desktop" (motor Word): tablas + bgcolor en todas
 # las celdas, anchos por atributo, ghost table MSO. Tema claro, acento rojo.
+# AGRUPADA por empresa: un solo email lista a todos sus técnicos pendientes.
 DEFAULT_ESCALATION_BODY = """\
 <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]-->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f1f5f9" style="background-color:#f1f5f9">
@@ -624,18 +622,9 @@ DEFAULT_ESCALATION_BODY = """\
       <span style="font-size:12px;color:#fca5a5">Security Access Manager &middot; Escalado automático</span>
     </td></tr>
     <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:24px 30px 8px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#374151;line-height:1.6">
-      El técnico <b style="color:#111827">{technician}</b> ha recibido <b style="color:#b91c1c">{alert_count}</b> avisos sobre el cliente <b style="color:#111827">{company}</b> y aún <b>no ha confirmado</b> la rotación.
+      <b style="color:#b91c1c">{n_tecnicos}</b> técnico(s) del cliente <b style="color:#111827">{company}</b> han recibido varios avisos y aún <b>no han confirmado</b> la rotación:
     </td></tr>
-    <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:8px 30px 4px">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#fef2f2" style="background-color:#fef2f2;border:1px solid #fecaca">
-        <tr><td style="padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#374151;line-height:1.9">
-          &middot; Cliente: <b style="color:#111827">{company}</b><br/>
-          &middot; Técnico: <b style="color:#111827">{technician}</b> ({tech_email})<br/>
-          &middot; Estado: <b style="color:#b91c1c">{estado}</b><br/>
-          &middot; Avisos enviados sin respuesta: <b style="color:#b91c1c">{alert_count}</b>
-        </td></tr>
-      </table>
-    </td></tr>
+    <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:8px 30px 4px">{tecnicos}</td></tr>
     <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:14px 30px 22px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6b7280">
       Requiere intervención manual.
     </td></tr>
@@ -648,41 +637,71 @@ DEFAULT_ESCALATION_BODY = """\
 <!--[if mso]></td></tr></table><![endif]-->"""
 
 
-def _escalation_vars(technician: str, company: str, tech_email: str | None,
-                     alert_count: int, days: int) -> dict:
-    estado = "EXPIRADO" if days <= 0 else f"quedan {days} días"
+def _tecnicos_escalado_block(items: list) -> str:
+    """Tabla HTML (a prueba de Outlook) con los técnicos pendientes.
+    items = lista de tuplas (username, email, estado, avisos)."""
+    th = ("padding:8px 12px;text-align:left;font-size:10px;color:#7f1d1d;letter-spacing:1px;"
+          "text-transform:uppercase;font-family:Arial,Helvetica,sans-serif")
+    td = ("padding:8px 12px;border-top:1px solid #fecaca;font-family:Arial,Helvetica,sans-serif;"
+          "font-size:13px;color:#374151")
+    rows = ""
+    for username, email, estado, avisos in items:
+        rows += (
+            "<tr>"
+            f"<td style='{td}'><b style='color:#111827'>{username}</b><br/>"
+            f"<span style='color:#6b7280;font-size:12px'>{email or '—'}</span></td>"
+            f"<td style='{td};color:#b91c1c;font-weight:bold'>{estado}</td>"
+            f"<td style='{td};text-align:center'>{avisos}</td>"
+            "</tr>"
+        )
+    return (
+        "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' bgcolor='#fef2f2' "
+        "style='background-color:#fef2f2;border:1px solid #fecaca'>"
+        f"<tr bgcolor='#fee2e2'>"
+        f"<td bgcolor='#fee2e2' style='background-color:#fee2e2;{th}'>Técnico</td>"
+        f"<td bgcolor='#fee2e2' style='background-color:#fee2e2;{th}'>Estado</td>"
+        f"<td bgcolor='#fee2e2' style='background-color:#fee2e2;{th}'>Avisos</td>"
+        f"</tr>{rows}</table>"
+    )
+
+
+def escalation_group_mapping(company, tcs: list) -> dict:
+    """Variables del email de escalado agrupado por empresa (lista de técnicos)."""
+    items = []
+    for tc in tcs:
+        days = tc.days_remaining
+        estado = "EXPIRADO" if days <= 0 else f"quedan {days} día(s)"
+        items.append((tc.technician.username, tc.technician.email, estado, tc.alert_count or 0))
     return {
-        "{technician}": technician,
-        "{company}": company,
-        "{tech_email}": tech_email or "—",
-        "{alert_count}": str(alert_count),
-        "{estado}": estado,
-        "{days_remaining}": str(days) if days > 0 else "EXPIRADO",
+        "{company}": company.name,
+        "{n_tecnicos}": str(len(tcs)),
+        "{tecnicos}": _tecnicos_escalado_block(items),
     }
-
-
-def escalation_mapping(tc, tech, company) -> dict:
-    """Variables del email de escalado con datos reales del par (técnico, empresa)."""
-    return _escalation_vars(tech.username, company.name, tech.email,
-                            tc.alert_count or 0, tc.days_remaining)
 
 
 def escalation_example_mapping() -> dict:
     """Datos de ejemplo para la vista previa / prueba de la plantilla de escalado."""
-    return _escalation_vars("tecnico_ejemplo", "Empresa Ejemplo", "tecnico@empresa.com", 3, 5)
+    items = [
+        ("tecnico01", "tecnico01@empresa.com", "quedan 1 día(s)", 3),
+        ("tecnico02", "tecnico02@empresa.com", "EXPIRADO", 4),
+    ]
+    return {
+        "{company}": "Empresa Ejemplo",
+        "{n_tecnicos}": "2",
+        "{tecnicos}": _tecnicos_escalado_block(items),
+    }
 
 
-def _send_escalation(tc, tech, company, recipient_emails) -> bool:
-    """Envía un email de escalado a la lista de destinatarios (admins elegidos
-    y/o emails externos) indicando que un técnico no ha confirmado tras varios
-    avisos. Usa la plantilla editable (Configuración → Escalado) o la de por defecto."""
+def _send_escalation_group(company, tcs: list, recipient_emails) -> bool:
+    """Envía UN email de escalado por empresa con la lista de técnicos pendientes,
+    a los destinatarios configurados. Usa la plantilla editable o la de por defecto."""
     try:
         from database import get_setting
         subject = get_setting("escalation_subject") or DEFAULT_ESCALATION_SUBJECT
         body = get_setting("escalation_body") or DEFAULT_ESCALATION_BODY
     except Exception:
         subject, body = DEFAULT_ESCALATION_SUBJECT, DEFAULT_ESCALATION_BODY
-    for k, v in escalation_mapping(tc, tech, company).items():
+    for k, v in escalation_group_mapping(company, tcs).items():
         subject = subject.replace(k, v)
         body = body.replace(k, v)
     sent = False
@@ -739,6 +758,7 @@ def job_check_alerts():
         tc_list = db.query(TechnicianCompany).all()
         sent_total = 0
         escalated_total = 0
+        to_escalate = {}   # company_id -> {"company": Company, "tcs": [TechnicianCompany]}
 
         for tc in tc_list:
             tech    = tc.technician
@@ -758,13 +778,14 @@ def job_check_alerts():
             tc.alert_last_sent = datetime.utcnow()
             tc.alert_count = (tc.alert_count or 0) + 1
 
-            # Escalado: tras N avisos sin confirmar, avisar a destinatarios (una vez)
+            # Escalado: tras N avisos sin confirmar, se acumula por empresa para
+            # enviar UN SOLO email por cliente al terminar el barrido (evita spam).
             if (esc_enabled and escalation_recipients
                     and tc.alert_count >= esc_threshold
                     and tc.escalated_at is None):
-                _send_escalation(tc, tech, company, escalation_recipients)
+                grp = to_escalate.setdefault(company.id, {"company": company, "tcs": []})
+                grp["tcs"].append(tc)
                 tc.escalated_at = datetime.utcnow()
-                escalated_total += 1
                 # Queda registrado como warning → visible en la campana
                 audit_mod.log(
                     db,
@@ -774,9 +795,15 @@ def job_check_alerts():
                     level="warning",
                 )
 
-        if sent_total:
+        # Un email de escalado por empresa con TODOS sus técnicos pendientes
+        for grp in to_escalate.values():
+            if _send_escalation_group(grp["company"], grp["tcs"], escalation_recipients):
+                escalated_total += len(grp["tcs"])
+
+        if sent_total or to_escalate:
             db.commit()
-            logger.info("Alertas procesadas: %d (escaladas: %d)", sent_total, escalated_total)
+            logger.info("Alertas procesadas: %d (técnicos escalados: %d en %d empresa(s))",
+                        sent_total, escalated_total, len(to_escalate))
     except Exception as e:
         logger.error("Error en job_check_alerts: %s", e)
     finally:
