@@ -666,16 +666,28 @@ def _tecnicos_escalado_block(items: list) -> str:
 
 
 def escalation_group_mapping(company, tcs: list) -> dict:
-    """Variables del email de escalado agrupado por empresa (lista de técnicos)."""
+    """Variables del email de escalado agrupado por empresa (lista de técnicos).
+    Incluye también las variables ANTIGUAS (por técnico) rellenas con valores
+    agregados del grupo, para que una plantilla personalizada del formato viejo
+    nunca muestre llaves sin sustituir."""
     items = []
     for tc in tcs:
         days = tc.days_remaining
         estado = "EXPIRADO" if days <= 0 else f"quedan {days} día(s)"
         items.append((tc.technician.username, tc.technician.email, estado, tc.alert_count or 0))
+    worst = min(tcs, key=lambda tc: tc.days_remaining)
+    w_days = worst.days_remaining
+    w_estado = "EXPIRADO" if w_days <= 0 else f"quedan {w_days} día(s)"
     return {
         "{company}": company.name,
         "{n_tecnicos}": str(len(tcs)),
         "{tecnicos}": _tecnicos_escalado_block(items),
+        # ── Compatibilidad con plantillas antiguas (agregados del grupo) ──
+        "{technician}": ", ".join(tc.technician.username for tc in tcs),
+        "{tech_email}": ", ".join((tc.technician.email or "—") for tc in tcs),
+        "{alert_count}": str(max((tc.alert_count or 0) for tc in tcs)),
+        "{estado}": w_estado,
+        "{days_remaining}": str(w_days) if w_days > 0 else "EXPIRADO",
     }
 
 
@@ -689,18 +701,44 @@ def escalation_example_mapping() -> dict:
         "{company}": "Empresa Ejemplo",
         "{n_tecnicos}": "2",
         "{tecnicos}": _tecnicos_escalado_block(items),
+        # Compatibilidad con plantillas antiguas
+        "{technician}": "tecnico01, tecnico02",
+        "{tech_email}": "tecnico01@empresa.com, tecnico02@empresa.com",
+        "{alert_count}": "4",
+        "{estado}": "EXPIRADO",
+        "{days_remaining}": "EXPIRADO",
     }
 
 
-def _send_escalation_group(company, tcs: list, recipient_emails) -> bool:
-    """Envía UN email de escalado por empresa con la lista de técnicos pendientes,
-    a los destinatarios configurados. Usa la plantilla editable o la de por defecto."""
+# Variables del formato antiguo (un email por técnico). Si una plantilla
+# guardada las usa y NO conoce {tecnicos}, es del formato viejo: no puede
+# renderizar bien un envío agrupado.
+_LEGACY_ESCALATION_VARS = ("{technician}", "{tech_email}", "{estado}", "{days_remaining}")
+
+
+def escalation_effective_template() -> tuple[str, str]:
+    """Plantilla de escalado a usar realmente. Si la guardada es del formato
+    antiguo (por técnico), se ignora y se usa la nueva agrupada por defecto —
+    así los despliegues que guardaron la plantilla vieja no envían emails con
+    variables sin sustituir."""
     try:
         from database import get_setting
         subject = get_setting("escalation_subject") or DEFAULT_ESCALATION_SUBJECT
         body = get_setting("escalation_body") or DEFAULT_ESCALATION_BODY
     except Exception:
-        subject, body = DEFAULT_ESCALATION_SUBJECT, DEFAULT_ESCALATION_BODY
+        return DEFAULT_ESCALATION_SUBJECT, DEFAULT_ESCALATION_BODY
+    combined = subject + body
+    if "{tecnicos}" not in combined and any(v in combined for v in _LEGACY_ESCALATION_VARS):
+        logger.warning("Plantilla de escalado guardada en formato antiguo (por técnico); "
+                       "se usa la plantilla agrupada por defecto")
+        return DEFAULT_ESCALATION_SUBJECT, DEFAULT_ESCALATION_BODY
+    return subject, body
+
+
+def _send_escalation_group(company, tcs: list, recipient_emails) -> bool:
+    """Envía UN email de escalado por empresa con la lista de técnicos pendientes,
+    a los destinatarios configurados. Usa la plantilla editable o la de por defecto."""
+    subject, body = escalation_effective_template()
     for k, v in escalation_group_mapping(company, tcs).items():
         subject = subject.replace(k, v)
         body = body.replace(k, v)

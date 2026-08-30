@@ -1491,14 +1491,13 @@ async def welcome_test_send(
 @router.get("/settings/escalation", response_class=HTMLResponse)
 @require_viewer
 async def escalation_settings_get(request: Request):
-    from scheduler import (DEFAULT_ESCALATION_SUBJECT, DEFAULT_ESCALATION_BODY,
-                           ESCALATION_VARS, escalation_example_mapping)
+    from scheduler import (ESCALATION_VARS, escalation_example_mapping,
+                           escalation_effective_template)
     db = request.state.db
     cfg = {k: get_setting(k) for k in ESCALATION_KEYS}
-    if not cfg.get("escalation_subject"):
-        cfg["escalation_subject"] = DEFAULT_ESCALATION_SUBJECT
-    if not cfg.get("escalation_body"):
-        cfg["escalation_body"] = DEFAULT_ESCALATION_BODY
+    # Plantilla efectiva: si la guardada es del formato antiguo (por técnico),
+    # el editor muestra la nueva agrupada (al Guardar queda migrada).
+    cfg["escalation_subject"], cfg["escalation_body"] = escalation_effective_template()
     cfg.setdefault("alert_escalation_enabled", "off")
     cfg.setdefault("alert_escalation_count", "3")
 
@@ -1571,12 +1570,13 @@ async def escalation_test_send(
 ):
     """Envía la plantilla de escalado (con datos de ejemplo) al email del admin."""
     from scheduler import (escalation_example_mapping, _send_email,
-                           DEFAULT_ESCALATION_SUBJECT, DEFAULT_ESCALATION_BODY)
+                           escalation_effective_template)
     me = request.state.current_user
     if not me.email:
         return RedirectResponse("/admin/settings/escalation?error=no_email", status_code=302)
-    subj = escalation_subject if escalation_subject is not None else (get_setting("escalation_subject") or DEFAULT_ESCALATION_SUBJECT)
-    body = escalation_body if escalation_body is not None else (get_setting("escalation_body") or DEFAULT_ESCALATION_BODY)
+    eff_subj, eff_body = escalation_effective_template()
+    subj = escalation_subject if escalation_subject is not None else eff_subj
+    body = escalation_body if escalation_body is not None else eff_body
     for k, v in escalation_example_mapping().items():
         subj = subj.replace(k, v)
         body = body.replace(k, v)
